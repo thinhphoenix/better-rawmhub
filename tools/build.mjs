@@ -46,4 +46,4 @@ mkdirSync(publicDir, { recursive: true });
 writeFileSync(resolve(publicDir, 'index.html'), out);
 
 console.log(`built index.html · ${(out.length / 1024).toFixed(1)} kB · ${catalogue.length} devices`);
-console.log('built public/index.html (Cloudflare Workers assets)');
+console.log('built public/index.html (Cloudflare Pages)');

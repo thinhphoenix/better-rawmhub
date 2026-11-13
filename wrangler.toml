@@ -1,5 +1,3 @@
 name = "better-rawmhub"
 compatibility_date = "2026-11-13"
-
-[assets]
-directory = "./public"
+pages_build_output_dir = "public"
