@@ -1253,6 +1253,8 @@ const RAWM = (() => {
       this.isReceiver = false;
       this.reportId = 0;
       this.outputs = [];
+      this.viaFeature = false;
+      this.noOutput = false;
       this.info = null;
       this._onReport = this._onReport.bind(this);
     }
@@ -1291,6 +1293,8 @@ const RAWM = (() => {
       this.reportLength = Number(profile && profile.report_len) || 64;
       this.reportId = 0;
       this.outputs = [];
+      this.viaFeature = false;
+      this.noOutput = false;
       this.hs = !!(profile && profile.soc === 'HS');
       this.info = null;
       this.queryText = '';
@@ -1301,19 +1305,37 @@ const RAWM = (() => {
       // makes Chrome reject the report.
       if (!this.hs) {
         const outputs = [];
+        const features = [];
         for (const collection of hidDevice.collections || []) {
           for (const report of collection.outputReports || []) {
             const bits = (report.items || []).reduce((n, item) => n + (item.reportSize || 0) * (item.reportCount || 0), 0);
             outputs.push({ id: report.reportId, bytes: Math.ceil(bits / 8) });
           }
+          for (const report of collection.featureReports || []) {
+            const bits = (report.items || []).reduce((n, item) => n + (item.reportSize || 0) * (item.reportCount || 0), 0);
+            features.push({ id: report.reportId, bytes: Math.ceil(bits / 8) });
+          }
         }
         this.outputs = outputs;
+        this.log('info', `output reports: ${outputs.map((o) => `${o.id}:${o.bytes}B`).join(', ') || 'none'}`);
+        this.log('info', `feature reports: ${features.map((o) => `${o.id}:${o.bytes}B`).join(', ') || 'none'}`);
         const usable = outputs.filter((o) => o.bytes > 0).sort((a, b) => b.bytes - a.bytes)[0];
         if (usable) {
           this.reportId = usable.id;
           this.reportLength = usable.bytes;
+          this.log('info', `using output report ${this.reportId}/${this.reportLength}B`);
+        } else if (features.length) {
+          const pick = features.filter((o) => o.bytes > 0).sort((a, b) => b.bytes - a.bytes)[0];
+          this.viaFeature = true;
+          this.reportId = pick.id;
+          this.reportLength = pick.bytes;
+          this.log('info', `no output report - trying feature report ${this.reportId}/${this.reportLength}B`);
+        } else {
+          this.noOutput = true;
+          this.log('err', 'this HID interface has no output or feature reports; Chrome cannot write to it');
+          this.emit('nooutput', null);
+          return;
         }
-        this.log('info', `output reports: ${outputs.map((o) => `${o.id}:${o.bytes}B`).join(', ') || 'none'} → ${this.reportId}/${this.reportLength}B`);
       }
       hidDevice.addEventListener('inputreport', this._onReport);
       this.emit('open', { device: hidDevice, profile });
@@ -1459,6 +1481,29 @@ const RAWM = (() => {
     }
 
     sendReport(report) {
+      if (this.noOutput) {
+        this.log('err', 'ignored write: this HID interface has no output/feature report');
+        return;
+      }
+      if (this.viaFeature) {
+        const data = new Uint8Array(this.reportLength);
+        data.set(report.subarray(0, this.reportLength));
+        this.log('tx', `feature ${this.reportId}/${this.reportLength}B ${hex(data, 72)}`);
+        try {
+          const result = this.device.sendFeatureReport(this.reportId, data);
+          if (result && typeof result.catch === 'function') {
+            result.catch((err) => {
+              this.log('err', 'sendFeatureReport rejected: ' + err.message);
+              this.emit('error', err);
+            });
+          }
+          this.pollFeature();
+        } catch (err) {
+          this.log('err', 'sendFeatureReport failed: ' + err.message);
+          this.emit('error', err);
+        }
+        return;
+      }
       const tried = new Set();
       const fail = (err) => {
         this.log('err', `sendReport rejected: ${err.message} (id ${this.reportId}, ${report.length}B)`);
@@ -1484,6 +1529,23 @@ const RAWM = (() => {
         });
       };
       attempt(this.reportId, report.length);
+    }
+
+    pollFeature() {
+      let n = 0;
+      const tick = async () => {
+        if (n++ > 4 || !this.device) return;
+        try {
+          const view = await this.device.receiveFeatureReport(this.reportId);
+          if (view && view.byteLength) {
+            const data = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+            this.log('rx', 'feature ' + hex(data, 72));
+            this.ingest(data);
+          }
+        } catch { /* no feature response */ }
+        setTimeout(tick, 60);
+      };
+      tick();
     }
 
     sendHs(command, bytes = []) {
@@ -2073,9 +2135,9 @@ const RAWM = (() => {
 
     ${state.handshake !== 'ready' ? `<div class="notice warn" style="margin-bottom:14px">
       ${icon('alert')}
-      <span><strong>${state.handshake === 'timeout' ? 'No reply from the device.' : 'Waiting for the device to answer.'}</strong>
-      ${state.handshake === 'timeout' ? ' Close RAWM HUB desktop if it is running, switch the device to 2.4 GHz or plug in the cable, then try again.' : ' The query was sent and usually answers in under a second.'}
-      <button class="link-btn" data-action="handshake">Send query again</button></span>
+      <span><strong>${state.handshake === 'error' ? 'This HID interface cannot be written over WebHID.' : state.handshake === 'timeout' ? 'No reply from the device.' : 'Waiting for the device to answer.'}</strong>
+      ${state.handshake === 'error' ? ' Pick another RAWM interface in the browser prompt, connect the mouse directly with a USB cable, or use the desktop app.' : state.handshake === 'timeout' ? ' Close RAWM HUB desktop if it is running, switch the device to 2.4 GHz or plug in the cable, then try again.' : ' The query was sent and usually answers in under a second.'}
+      ${state.handshake === 'error' ? '' : '<button class="link-btn" data-action="handshake">Send query again</button>'}</span>
     </div>` : ''}
 
     <section class="card hero">
@@ -2947,9 +3009,13 @@ python -m http.server 8080</pre>
     state.busy = true;
     try {
       const picked = await RAWM.Transport.request();
-      const hid = picked[0];
-      if (!hid) { state.busy = false; return; }
-      const pid = Number(hid.productId).toString(16).padStart(4, '0');
+      if (!picked.length) { state.busy = false; return; }
+      const pid = Number(picked[0].productId).toString(16).padStart(4, '0');
+      const authorised = await RAWM.Transport.authorised();
+      const pool = [...picked, ...authorised.filter((d) => Number(d.productId) === Number(picked[0].productId))];
+      const writable = pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
+      const hid = writable || picked[0];
+      addLog('info', `HID candidates: ${pool.map((d) => `${d.productName || 'device'} (${(d.collections || []).length} collections)`).join(' · ')}`);
       const known = byProduct(pid);
       const profile = known ? { ...known } : {
         title: hid.productName || 'RAWM device',
@@ -3483,6 +3549,12 @@ python -m http.server 8080</pre>
   });
   transport.addEventListener('peer', () => {
     addLog('info', 'receiver paired — querying the mouse on channel 0');
+  });
+  transport.addEventListener('nooutput', () => {
+    state.handshake = 'error';
+    addLog('err', 'this HID interface has no output/feature report — Chrome cannot write to it');
+    render();
+    toast('This HID interface is read-only over WebHID', 'err');
   });
   transport.addEventListener('timeout', () => {
     if (!state.connected) return;

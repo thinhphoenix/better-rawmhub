@@ -91,6 +91,8 @@ const RAWM = (() => {
       this.isReceiver = false;
       this.reportId = 0;
       this.outputs = [];
+      this.viaFeature = false;
+      this.noOutput = false;
       this.info = null;
       this._onReport = this._onReport.bind(this);
     }
@@ -129,6 +131,8 @@ const RAWM = (() => {
       this.reportLength = Number(profile && profile.report_len) || 64;
       this.reportId = 0;
       this.outputs = [];
+      this.viaFeature = false;
+      this.noOutput = false;
       this.hs = !!(profile && profile.soc === 'HS');
       this.info = null;
       this.queryText = '';
@@ -139,19 +143,37 @@ const RAWM = (() => {
       // makes Chrome reject the report.
       if (!this.hs) {
         const outputs = [];
+        const features = [];
         for (const collection of hidDevice.collections || []) {
           for (const report of collection.outputReports || []) {
             const bits = (report.items || []).reduce((n, item) => n + (item.reportSize || 0) * (item.reportCount || 0), 0);
             outputs.push({ id: report.reportId, bytes: Math.ceil(bits / 8) });
           }
+          for (const report of collection.featureReports || []) {
+            const bits = (report.items || []).reduce((n, item) => n + (item.reportSize || 0) * (item.reportCount || 0), 0);
+            features.push({ id: report.reportId, bytes: Math.ceil(bits / 8) });
+          }
         }
         this.outputs = outputs;
+        this.log('info', `output reports: ${outputs.map((o) => `${o.id}:${o.bytes}B`).join(', ') || 'none'}`);
+        this.log('info', `feature reports: ${features.map((o) => `${o.id}:${o.bytes}B`).join(', ') || 'none'}`);
         const usable = outputs.filter((o) => o.bytes > 0).sort((a, b) => b.bytes - a.bytes)[0];
         if (usable) {
           this.reportId = usable.id;
           this.reportLength = usable.bytes;
+          this.log('info', `using output report ${this.reportId}/${this.reportLength}B`);
+        } else if (features.length) {
+          const pick = features.filter((o) => o.bytes > 0).sort((a, b) => b.bytes - a.bytes)[0];
+          this.viaFeature = true;
+          this.reportId = pick.id;
+          this.reportLength = pick.bytes;
+          this.log('info', `no output report - trying feature report ${this.reportId}/${this.reportLength}B`);
+        } else {
+          this.noOutput = true;
+          this.log('err', 'this HID interface has no output or feature reports; Chrome cannot write to it');
+          this.emit('nooutput', null);
+          return;
         }
-        this.log('info', `output reports: ${outputs.map((o) => `${o.id}:${o.bytes}B`).join(', ') || 'none'} → ${this.reportId}/${this.reportLength}B`);
       }
       hidDevice.addEventListener('inputreport', this._onReport);
       this.emit('open', { device: hidDevice, profile });
@@ -297,6 +319,29 @@ const RAWM = (() => {
     }
 
     sendReport(report) {
+      if (this.noOutput) {
+        this.log('err', 'ignored write: this HID interface has no output/feature report');
+        return;
+      }
+      if (this.viaFeature) {
+        const data = new Uint8Array(this.reportLength);
+        data.set(report.subarray(0, this.reportLength));
+        this.log('tx', `feature ${this.reportId}/${this.reportLength}B ${hex(data, 72)}`);
+        try {
+          const result = this.device.sendFeatureReport(this.reportId, data);
+          if (result && typeof result.catch === 'function') {
+            result.catch((err) => {
+              this.log('err', 'sendFeatureReport rejected: ' + err.message);
+              this.emit('error', err);
+            });
+          }
+          this.pollFeature();
+        } catch (err) {
+          this.log('err', 'sendFeatureReport failed: ' + err.message);
+          this.emit('error', err);
+        }
+        return;
+      }
       const tried = new Set();
       const fail = (err) => {
         this.log('err', `sendReport rejected: ${err.message} (id ${this.reportId}, ${report.length}B)`);
@@ -322,6 +367,23 @@ const RAWM = (() => {
         });
       };
       attempt(this.reportId, report.length);
+    }
+
+    pollFeature() {
+      let n = 0;
+      const tick = async () => {
+        if (n++ > 4 || !this.device) return;
+        try {
+          const view = await this.device.receiveFeatureReport(this.reportId);
+          if (view && view.byteLength) {
+            const data = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+            this.log('rx', 'feature ' + hex(data, 72));
+            this.ingest(data);
+          }
+        } catch { /* no feature response */ }
+        setTimeout(tick, 60);
+      };
+      tick();
     }
 
     sendHs(command, bytes = []) {

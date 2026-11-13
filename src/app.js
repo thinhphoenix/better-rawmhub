@@ -317,9 +317,9 @@
 
     ${state.handshake !== 'ready' ? `<div class="notice warn" style="margin-bottom:14px">
       ${icon('alert')}
-      <span><strong>${state.handshake === 'timeout' ? 'No reply from the device.' : 'Waiting for the device to answer.'}</strong>
-      ${state.handshake === 'timeout' ? ' Close RAWM HUB desktop if it is running, switch the device to 2.4 GHz or plug in the cable, then try again.' : ' The query was sent and usually answers in under a second.'}
-      <button class="link-btn" data-action="handshake">Send query again</button></span>
+      <span><strong>${state.handshake === 'error' ? 'This HID interface cannot be written over WebHID.' : state.handshake === 'timeout' ? 'No reply from the device.' : 'Waiting for the device to answer.'}</strong>
+      ${state.handshake === 'error' ? ' Pick another RAWM interface in the browser prompt, connect the mouse directly with a USB cable, or use the desktop app.' : state.handshake === 'timeout' ? ' Close RAWM HUB desktop if it is running, switch the device to 2.4 GHz or plug in the cable, then try again.' : ' The query was sent and usually answers in under a second.'}
+      ${state.handshake === 'error' ? '' : '<button class="link-btn" data-action="handshake">Send query again</button>'}</span>
     </div>` : ''}
 
     <section class="card hero">
@@ -1191,9 +1191,13 @@ python -m http.server 8080</pre>
     state.busy = true;
     try {
       const picked = await RAWM.Transport.request();
-      const hid = picked[0];
-      if (!hid) { state.busy = false; return; }
-      const pid = Number(hid.productId).toString(16).padStart(4, '0');
+      if (!picked.length) { state.busy = false; return; }
+      const pid = Number(picked[0].productId).toString(16).padStart(4, '0');
+      const authorised = await RAWM.Transport.authorised();
+      const pool = [...picked, ...authorised.filter((d) => Number(d.productId) === Number(picked[0].productId))];
+      const writable = pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
+      const hid = writable || picked[0];
+      addLog('info', `HID candidates: ${pool.map((d) => `${d.productName || 'device'} (${(d.collections || []).length} collections)`).join(' · ')}`);
       const known = byProduct(pid);
       const profile = known ? { ...known } : {
         title: hid.productName || 'RAWM device',
@@ -1727,6 +1731,12 @@ python -m http.server 8080</pre>
   });
   transport.addEventListener('peer', () => {
     addLog('info', 'receiver paired — querying the mouse on channel 0');
+  });
+  transport.addEventListener('nooutput', () => {
+    state.handshake = 'error';
+    addLog('err', 'this HID interface has no output/feature report — Chrome cannot write to it');
+    render();
+    toast('This HID interface is read-only over WebHID', 'err');
   });
   transport.addEventListener('timeout', () => {
     if (!state.connected) return;
