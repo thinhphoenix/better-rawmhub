@@ -93,6 +93,9 @@ const RAWM = (() => {
       this.outputs = [];
       this.viaFeature = false;
       this.noOutput = false;
+      this.txQueue = [];
+      this.txTimer = null;
+      this.txOffset = 0;
       this.info = null;
       this._onReport = this._onReport.bind(this);
     }
@@ -133,6 +136,9 @@ const RAWM = (() => {
       this.outputs = [];
       this.viaFeature = false;
       this.noOutput = false;
+      this.txQueue = [];
+      this.txTimer = null;
+      this.txOffset = 0;
       this.hs = !!(profile && profile.soc === 'HS');
       this.info = null;
       this.queryText = '';
@@ -207,8 +213,12 @@ const RAWM = (() => {
       clearTimeout(this.queryTimer);
       clearInterval(this.queryRetry);
       clearInterval(this.pumpTimer);
+      clearTimeout(this.txTimer);
       this.pumpTimer = null;
       this.queryRetry = null;
+      this.txTimer = null;
+      this.txQueue = [];
+      this.txOffset = 0;
       const d = this.device;
       if (d) {
         try { d.removeEventListener('inputreport', this._onReport); } catch { /* noop */ }
@@ -299,16 +309,38 @@ const RAWM = (() => {
     }
 
     writeBody(body) {
+      this.txQueue.push(body);
+      this.drainTx();
+    }
+
+    drainTx() {
+      if (!this.device || this.txTimer || !this.txQueue.length) return;
+      const body = this.txQueue[0];
+      const prefix = this.channel !== null ? 1 : 0;
+      const max = this.reportLength - prefix - 1;
+      if (max <= 0) {
+        this.txQueue.shift();
+        this.txOffset = 0;
+        return;
+      }
+      const chunk = body.subarray(this.txOffset, this.txOffset + max);
       const report = new Uint8Array(this.reportLength);
       let off = 0;
-      if (this.channel !== null) {
+      if (prefix) {
         report[0] = 0xc0 | (this.channel & 0x3f);
         off = 1;
       }
-      const chunk = body.subarray(0, this.reportLength - off - 1);
       report[off] = 0x80 | chunk.length;
       report.set(chunk, off + 1);
       this.sendReport(report);
+      this.txOffset += chunk.length;
+      if (this.txOffset < body.length) {
+        this.txTimer = setTimeout(() => { this.txTimer = null; this.drainTx(); }, 25);
+      } else {
+        this.txQueue.shift();
+        this.txOffset = 0;
+        this.txTimer = setTimeout(() => { this.txTimer = null; this.drainTx(); }, 10);
+      }
     }
 
     writeHsFrame(command, payload) {
@@ -539,7 +571,7 @@ const RAWM = (() => {
             return;
           }
           this.info = info;
-          if (info.crc === 1) this.crc = true;
+          this.crc = info.crc === 1;
           this.log('rx', 'device info ' + JSON.stringify(info).slice(0, 400));
           this.emit('info', info);
         }
