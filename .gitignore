@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Local research material (vendor bundle, catalogue snapshots)
+reference/
+
+# generated antd bundle (rebuilt by `npm run build`)
+assets/ant.js
+
+# Tooling & test artifacts
+.playwright-mcp/
+test-results/
+playwright-report/
+*.log
+
+# Local environment
+.env
+.env.*
+
+# Temp files
+*.tmp
+*.bak

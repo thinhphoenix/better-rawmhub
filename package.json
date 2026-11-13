@@ -1,0 +1,19 @@
+{
+  "name": "better-rawmhub",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Browser-native RAWM HUB rebuild with WebHID transport",
+  "scripts": {
+    "build:ant": "esbuild tools/ant-entry.js --bundle --minify --format=iife --outfile=assets/ant.js --loader:.js=jsx",
+    "build": "npm run build:ant && node tools/build.mjs",
+    "test": "node tools/test-transport.mjs",
+    "start": "node tools/start.mjs",
+    "serve": "python -m http.server 8080"
+  },
+  "dependencies": {
+    "antd": "^5.29.3",
+    "esbuild": "^0.28.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
