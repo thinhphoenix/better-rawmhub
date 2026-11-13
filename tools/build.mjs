@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -38,4 +38,20 @@ const out = template
   .replace('__ANT_CONTROLS__', () => antControls.trim());
 
 writeFileSync(resolve(root, 'index.html'), out);
+
+// Cloudflare Pages output: one self-contained file + security headers.
+const publicDir = resolve(root, 'public');
+mkdirSync(publicDir, { recursive: true });
+writeFileSync(resolve(publicDir, 'index.html'), out);
+writeFileSync(resolve(publicDir, '_headers'), `/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: hid=(self)
+  X-Frame-Options: SAMEORIGIN
+
+/index.html
+  Cache-Control: no-cache, must-revalidate
+`);
+
 console.log(`built index.html · ${(out.length / 1024).toFixed(1)} kB · ${catalogue.length} devices`);
+console.log('built public/index.html + public/_headers (Cloudflare Pages)');

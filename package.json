@@ -8,12 +8,19 @@
     "build": "npm run build:ant && node tools/build.mjs",
     "test": "node tools/test-transport.mjs",
     "start": "node tools/start.mjs",
-    "serve": "python -m http.server 8080"
+    "serve": "python -m http.server 8080",
+    "cf:login": "wrangler login",
+    "cf:project": "wrangler pages project create better-rawmhub --production-branch main",
+    "preview": "npm run build && wrangler pages dev public",
+    "deploy": "npm run build && wrangler pages deploy public --project-name better-rawmhub --branch main"
   },
   "dependencies": {
     "antd": "^5.29.3",
     "esbuild": "^0.28.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.161.0"
   }
 }

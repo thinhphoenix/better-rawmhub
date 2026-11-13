@@ -14,6 +14,11 @@ reference/
 # generated antd bundle (rebuilt by `npm run build`)
 assets/ant.js
 
+# Cloudflare Pages output + local Wrangler state
+public/
+.wrangler/
+.dev.vars
+
 # Tooling & test artifacts
 .playwright-mcp/
 test-results/

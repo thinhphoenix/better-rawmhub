@@ -99,6 +99,22 @@ npm run build                    # bundles antd, then inlines everything
 node tools/test-transport.mjs    # framing, CRC and receiver-routing checks
 ```
 
+## Deploy (Cloudflare Pages)
+
+The build writes a deployable folder to `public/` (single `index.html` + `_headers`).
+
+```bash
+npm run cf:login       # once, opens the browser
+npm run cf:project     # once, creates the Pages project
+npm run deploy         # build + upload; prints the *.pages.dev URL
+```
+
+- Default URL: `https://better-rawmhub.pages.dev`
+- `public/_headers` disables HTML caching and allows `Permissions-Policy: hid=(self)`.
+- For CI, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, then run `npm run deploy`.
+
+WebHID works on the `*.pages.dev` HTTPS URL; no extra headers or service worker are needed.
+
 ## Design
 
 - Dark cockpit shell: 250px rail, sticky topbar, 1240px content column.
