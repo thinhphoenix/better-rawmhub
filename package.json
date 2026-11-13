@@ -10,9 +10,8 @@
     "start": "node tools/start.mjs",
     "serve": "python -m http.server 8080",
     "cf:login": "wrangler login",
-    "cf:project": "wrangler pages project create better-rawmhub --production-branch main",
-    "preview": "npm run build && wrangler pages dev public",
-    "deploy": "npm run build && wrangler pages deploy public --project-name better-rawmhub --branch main"
+    "preview": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "antd": "^5.29.3",

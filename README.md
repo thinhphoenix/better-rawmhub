@@ -99,21 +99,21 @@ npm run build                    # bundles antd, then inlines everything
 node tools/test-transport.mjs    # framing, CRC and receiver-routing checks
 ```
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Workers static assets)
 
-The build writes a deployable folder to `public/` (single `index.html` + `_headers`).
+The build writes a deployable folder to `public/` (single `index.html`).
 
 ```bash
 npm run cf:login       # once, opens the browser
-npm run cf:project     # once, creates the Pages project
-npm run deploy         # build + upload; prints the *.pages.dev URL
+npm run deploy         # build + upload, prints the workers.dev URL
 ```
 
-- Default URL: `https://better-rawmhub.pages.dev`
-- `public/_headers` disables HTML caching and allows `Permissions-Policy: hid=(self)`.
+- The Worker is created automatically on the first `wrangler deploy`.
+- URL: `https://better-rawmhub.<your-subdomain>.workers.dev`
+- `public/` is git-ignored; it is rebuilt from `src/` every deploy.
 - For CI, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, then run `npm run deploy`.
 
-WebHID works on the `*.pages.dev` HTTPS URL; no extra headers or service worker are needed.
+WebHID works on the `*.workers.dev` HTTPS URL; no extra headers or service worker are needed.
 
 ## Design
 
