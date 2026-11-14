@@ -178,6 +178,10 @@ Open Graph/Twitter tags and SoftwareApplication JSON-LD.
    Set the same variable in the Cloudflare Pages project so every automatic
    build keeps the tag.
 
+   HTML-file alternative: download the `google…html` file from Search Console,
+   put it in the repository root, and run `npm run deploy`. The build copies any
+   `google*.html` file into `public/` so it is served at the site root.
+
    DNS alternative: add a **TXT** record for the exact host Google asks for
    (`better-rawmhub` in `chila.io.vn`, not just the apex). A Domain property for
    `chila.io.vn` also covers every subdomain.

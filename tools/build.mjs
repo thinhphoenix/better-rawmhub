@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, readdirSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -129,6 +129,12 @@ try {
   // Screenshot is optional; the meta tag still points at the expected path.
 }
 
+// Search Console HTML-file verification: keep any google*.html at repo root
+// in the deployed output.
+const verificationFiles = readdirSync(root).filter((f) => /^google[0-9a-f]+\.html$/i.test(f));
+for (const f of verificationFiles) copyFileSync(resolve(root, f), resolve(publicDir, f));
+
 console.log(`built index.html · ${(out.length / 1024).toFixed(1)} kB · ${catalogue.length} devices`);
 console.log('built public/index.html (Cloudflare Pages)');
 console.log('built public/robots.txt, public/sitemap.xml, public/og-image.png');
+if (verificationFiles.length) console.log(`copied ${verificationFiles.join(', ')}`);
