@@ -99,6 +99,16 @@ npm run build                    # bundles antd, then inlines everything
 node tools/test-transport.mjs    # framing, CRC and receiver-routing checks
 ```
 
+## Versioning
+
+`package.json` is the single source of truth. The build injects that version into the rail
+footer and `<meta name="app-version">`.
+
+```bash
+npm run bump      # 2.0.0 -> 2.0.1, no build/deploy
+npm run release   # bump patch + build + deploy + commit + push
+```
+
 ## Deploy (Cloudflare Pages)
 
 The build writes a deployable folder to `public/` (single `index.html`).

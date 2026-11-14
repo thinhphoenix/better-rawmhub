@@ -10,6 +10,7 @@ const app = read('src/app.js');
 const antLib = read('assets/ant.js');
 const antControls = read('src/ant-controls.js');
 const catalogue = JSON.parse(read('src/catalogue.json'));
+const pkg = JSON.parse(read('package.json'));
 
 const mime = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
 const dataUri = (path) => {
@@ -26,7 +27,7 @@ for (const d of catalogue) {
 }
 
 const logo = dataUri('assets/rawm-hub.png');
-const template = templateSrc.split('assets/rawm-hub.png').join(logo);
+const template = templateSrc.split('assets/rawm-hub.png').join(logo).split('__VERSION__').join(pkg.version);
 
 const json = JSON.stringify(catalogue).replace(/<\//g, '<\\/');
 const out = template
