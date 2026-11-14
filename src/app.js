@@ -81,7 +81,7 @@
     onboardMax: 5,
     allowSwitch: true,
     rplus: 'None',
-    fwChannel: 0,
+    fwChannel: null,
     keyDelay: [8, 8, 8, 8, 8, 8, 8],
     levelColors: [4, 2, 3, 1],
     onboardStatus: [0x81, 0x82, 0x83, 0x84],
@@ -132,6 +132,8 @@
   function mergeInfo(info) {
     if (!info || !state.cfg) return;
     const cfg = state.cfg;
+    const rev = String(info.revision || info.r || '');
+    if (cfg.fwChannel == null) cfg.fwChannel = rev.startsWith('G-') ? 1 : 0;
     const cpi = Number(info.cpi);
     if (Number.isFinite(cpi) && cpi > 0) {
       cfg.cpiX = cpi & 0xffff;
@@ -441,7 +443,7 @@
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>Device details</h2><p>Reported by the firmware</p></div></div></div>
         <div class="card-body">
-          <div class="kv"><span class="k">Firmware</span><span class="v">${esc((state.info && state.info.r) || '—')}</span></div>
+          <div class="kv"><span class="k">Firmware</span><span class="v">${esc((state.info && (state.info.r || state.info.revision)) || '—')}</span></div>
           <div class="kv"><span class="k">Product ID</span><span class="v">${esc(String(p.product_id).toUpperCase())}</span></div>
           <div class="kv"><span class="k">Sensor</span><span class="v">${esc(p.sensor || '—')}</span></div>
           <div class="kv"><span class="k">SoC</span><span class="v">${esc(p.soc || '—')}</span></div>
@@ -1030,7 +1032,7 @@
         <div class="card-head"><div class="ch-title">${icon('chip')}<div><h2>Installed firmware</h2><p>${esc(p.title)}</p></div></div><span class="pill accent">STABLE</span></div>
         <div class="card-body">
           <div class="stat-grid" style="grid-template-columns:1fr 1fr 1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden">
-            <div class="stat" style="border-right:1px solid var(--line);border-bottom:0;padding:15px 16px"><div class="stat-label">Installed</div><div class="stat-value" style="font-size:18px">${esc((state.info && state.info.r) || '—')}</div></div>
+            <div class="stat" style="border-right:1px solid var(--line);border-bottom:0;padding:15px 16px"><div class="stat-label">Installed</div><div class="stat-value" style="font-size:18px">${esc((state.info && (state.info.r || state.info.revision)) || '—')}</div></div>
             <div class="stat" style="border-right:1px solid var(--line);border-bottom:0;padding:15px 16px"><div class="stat-label">Channel</div><div class="stat-value" style="font-size:18px">Stable</div></div>
             <div class="stat" style="border-bottom:0;padding:15px 16px"><div class="stat-label">Connection</div><div class="stat-value" style="font-size:18px">${esc(connection)}</div></div>
           </div>
@@ -1648,7 +1650,7 @@ python -m http.server 8080</pre>
     if (e.target && e.target.id === 'fw-channel' && state.cfg) {
       state.cfg.fwChannel = Number(e.target.value);
       transport.writeGamingOnly(state.cfg.fwChannel === 1);
-      markDirty();
+      transport.save();
       toast(state.cfg.fwChannel === 1 ? 'RAWM Gaming firmware channel' : 'Standard firmware channel', 'info');
       return;
     }
