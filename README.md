@@ -11,6 +11,9 @@ The deliverable is a **single self-contained `index.html`** with React, Ant
 Design, fonts, icons and product renders inlined. No runtime CDN, no build step
 needed to open the built file.
 
+- Live app: <https://better-rawmhub.pages.dev>
+- Source and issues: <https://github.com/thinhphoenix/better-rawmhub>
+
 ![Device overview](shots/device.png)
 
 ![Button mapping](shots/buttons.png)
@@ -151,6 +154,36 @@ npm run deploy     # build + upload to the Pages project
 
 WebHID works on the `*.pages.dev` HTTPS URL; no extra headers or service worker
 are needed.
+
+## Google indexing
+
+The build writes `robots.txt`, `sitemap.xml` and `og-image.png` next to
+`index.html`, and the page itself carries a canonical URL, description,
+Open Graph/Twitter tags and SoftwareApplication JSON-LD.
+
+1. Open [Google Search Console](https://search.google.com/search-console) → **Add
+   property** → **URL prefix** → `https://better-rawmhub.pages.dev`.
+2. Verify with the **HTML tag** method. Copy the token from the `content="…"`
+   attribute and build with it:
+
+   ```bash
+   # PowerShell
+   $env:GOOGLE_SITE_VERIFICATION="your-token"; npm run deploy
+   # bash
+   GOOGLE_SITE_VERIFICATION=your-token npm run deploy
+   ```
+
+   Set the same variable in the Cloudflare Pages project so every automatic
+   build keeps the tag.
+3. Submit `https://better-rawmhub.pages.dev/sitemap.xml` under **Sitemaps**.
+4. Use **URL Inspection** → **Request indexing** for the home page.
+5. Add the live URL to the GitHub repository description and README, and link it
+   from forum posts or reviews. Backlinks matter more than tags for short
+   queries.
+
+Indexing takes days to weeks. Brand queries such as *RAWM HUB Web*,
+*Better RAWM HUB* or *RAWM web configurator* are realistic targets; the bare
+word *RAWM* is owned by the vendor and cannot be guaranteed.
 
 ## Design
 

@@ -1216,7 +1216,16 @@ python -m http.server 8080</pre>
           <div class="kv" style="margin-top:12px"><span class="k">All issues</span><a class="v" href="${REPO_URL}/issues" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}/issues</a></div>
         </div>
       </section>
-    </div>`;
+    </div>
+
+    <section class="card" style="margin-top:14px">
+      <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>About RAWM HUB Web</h2><p>Browser configurator for RAWM mouse and keyboard software</p></div></div></div>
+      <div class="card-body">
+        <p class="help">RAWM HUB Web is a free, open-source alternative to the RAWM HUB desktop software for RAWM gaming mice and keyboards. It reads and writes the device configuration directly from Chrome or Edge using WebHID — no installer, no account and no background service. Every settings change is written to the mouse automatically and saved to onboard memory.</p>
+        <p class="help" style="margin-top:10px">Supported controls include DPI stages with per-stage colours, polling rate, lift-off distance, angle tuning, ripple control, motion sync, glass mode, lighting modes and brightness, button remapping, advanced keys and macros for the RAWM devices in the vendor catalogue. The source code is on <a href="${REPO_URL}" target="_blank" rel="noopener" style="color:var(--accent)">GitHub</a> and issues are welcome.</p>
+        <p class="help" style="margin-top:10px;color:var(--faint)">This is an unofficial community rebuild. RAWM, RAWM HUB and the device renders belong to RAWM / Shenzhen Renmo Electronic Technology.</p>
+      </div>
+    </section>`;
   }
 
   /* ── Router / shell ────────────────────────────────────────────────── */
@@ -1253,7 +1262,9 @@ python -m http.server 8080</pre>
       lightNav.classList.toggle('is-disabled', noLight);
     }
     $('#crumb-section').textContent = PAGE_TITLES[page] || 'Device';
-    document.title = state.connected && state.profile ? `${PAGE_TITLES[page]} · ${state.profile.title} — RAWM HUB` : 'RAWM HUB — Device configurator';
+    document.title = state.connected && state.profile
+      ? `${PAGE_TITLES[page]} · ${state.profile.title} — RAWM HUB Web`
+      : 'RAWM HUB Web — RAWM mouse & keyboard configurator';
 
     const fw = $('#fw-channel');
     if (fw) fw.value = String((state.cfg && state.cfg.fwChannel) || 0);

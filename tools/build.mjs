@@ -1,7 +1,12 @@
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
+const SITE_URL = 'https://better-rawmhub.pages.dev';
+const googleVerification = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
+const verificationTag = googleVerification
+  ? `<meta name="google-site-verification" content="${googleVerification}" />`
+  : '';
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
 const templateSrc = read('src/template.html');
 const css = read('src/styles.css');
@@ -73,6 +78,8 @@ const favicon = dataUri('assets/favicon.ico');
 const template = templateSrc
   .split('assets/rawm-hub.png').join(logo)
   .split('assets/favicon.ico').join(favicon)
+  .split('__SITE_URL__').join(SITE_URL)
+  .split('__GOOGLE_VERIFICATION__').join(verificationTag)
   .split('__VERSION__').join(pkg.version);
 
 const json = JSON.stringify(catalogue).replace(/<\//g, '<\\/');
@@ -93,5 +100,35 @@ rmSync(publicDir, { recursive: true, force: true });
 mkdirSync(publicDir, { recursive: true });
 writeFileSync(resolve(publicDir, 'index.html'), out);
 
+// Search-engine files: robots.txt, sitemap.xml and a social preview image.
+const today = new Date().toISOString().slice(0, 10);
+writeFileSync(resolve(publicDir, 'robots.txt'), [
+  'User-agent: *',
+  'Allow: /',
+  '',
+  `Sitemap: ${SITE_URL}/sitemap.xml`,
+  '',
+].join('\n'));
+
+writeFileSync(resolve(publicDir, 'sitemap.xml'), [
+  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+  '  <url>',
+  `    <loc>${SITE_URL}/</loc>`,
+  `    <lastmod>${today}</lastmod>`,
+  '    <changefreq>weekly</changefreq>',
+  '    <priority>1.0</priority>',
+  '  </url>',
+  '</urlset>',
+  '',
+].join('\n'));
+
+try {
+  copyFileSync(resolve(root, 'shots/device.png'), resolve(publicDir, 'og-image.png'));
+} catch {
+  // Screenshot is optional; the meta tag still points at the expected path.
+}
+
 console.log(`built index.html · ${(out.length / 1024).toFixed(1)} kB · ${catalogue.length} devices`);
 console.log('built public/index.html (Cloudflare Pages)');
+console.log('built public/robots.txt, public/sitemap.xml, public/og-image.png');
