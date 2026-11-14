@@ -11,8 +11,8 @@
   const themeConfig = {
     algorithm: theme.darkAlgorithm,
     token: {
-      colorPrimary: '#4be38a',
-      colorInfo: '#4be38a',
+      colorPrimary: '#3b82f6',
+      colorInfo: '#3b82f6',
       colorBgBase: '#08090b',
       colorTextBase: '#eef0f3',
       colorBgContainer: '#141414',
@@ -20,7 +20,7 @@
       colorBorder: '#3a3f46',
       colorText: '#eef0f3',
       colorTextSecondary: '#8d949f',
-      borderRadius: 6,
+      borderRadius: 4,
       controlHeight: 32,
       fontFamily: '"Instrument Sans", ui-sans-serif, system-ui, sans-serif',
       fontSize: 13,

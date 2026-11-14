@@ -8,7 +8,7 @@ The deliverable is a **single self-contained `index.html`** with React and Ant D
 bundled in, no runtime CDN and no build step needed to run the built file. It talks to real
 hardware over WebHID (vendor `0x1915`) — there is no demo mode.
 
-![Device overview](shots/antd-final-device.png)
+![Device overview](shots/blue-device.png)
 
 ## Run it
 
@@ -134,7 +134,8 @@ WebHID works on the `*.pages.dev` HTTPS URL; no extra headers or service worker 
   `index.html` never depends on the CDN or the `assets/` folder for images.
 - Devices without a downloaded render (receivers or a few models) use the inline SVG
   placeholder; `src/` no longer references `assets/devices` at all.
-- Mint accent `#4be38a`, layered near-black surfaces, 1px hairlines.
+- Blue accent `#3b82f6`, flat near-black surfaces, 1px hairlines.
+- 8px card radius, 4px controls, no gradients or decorative glows.
 - Instrument Sans for UI, JetBrains Mono for numbers and micro-labels.
 - Controls are real Ant Design 5 components (Button, Switch, Select, Slider, Segmented)
   mounted over the custom layout; React and antd are bundled into `index.html`.
