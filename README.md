@@ -35,7 +35,7 @@ Safari or Firefox.
 | Area | Description |
 | --- | --- |
 | Device | Product render, live DPI / polling / battery / profile summary, onboard slots with Switchable and colour dots |
-| Buttons | High-res annotated product map with numbered buttons, key list, key / macro / function assignment, onboard config, R-Plus key, key capture, turbo |
+| Buttons | Product map with clickable hotspots, key list, key / macro / function assignment, onboard config, R-Plus key, key capture, turbo |
 | Performance | DPI stages with X/Y and per-stage colours, polling rates with X-Polling, glass mode, LOD, angle tuning/snapping, ripple control, motion sync, performance mode, wireless turbo, sleep and key delay |
 | Lighting | Loop / Customize / DPI-level modes, colour palette, brightness/speed, glass mode, per-zone switches, per-key painting for keyboards |
 | Advanced keys | SOCD, tap-hold (MT), rapid-trigger priority (RS) and dynamic keystroke (DKS) editors |

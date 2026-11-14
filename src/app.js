@@ -259,12 +259,26 @@
   }
 
   /* ── Connect / landing ─────────────────────────────────────────────── */
-  function mouseMap(p) {
-    const src = p.setup_icon || p.image;
-    if (!src) return `<div class="mouse-map"><div class="device-placeholder">${icon('mouse')}</div></div>`;
+  function mouseMap(p, active) {
+    const keys = (p.keys || []).slice().sort((a, b) => String(a.label || a.name).localeCompare(String(b.label || b.name)));
+    const pos = {
+      M1: [36, 19], M2: [64, 19], M3: [50, 17], M4: [19, 57],
+      M5: [19, 67], M6: [50, 55], M7: [50, 80], M8: [50, 90],
+    };
     return `<div class="mouse-map">
-      <img class="setup-photo" src="${esc(src)}" alt="${esc(p.title)} button map"
-        onerror="this.onerror=null;this.src='${esc(p.image || PLACEHOLDER_IMG)}'" />
+      <div class="mouse-wrap">
+        ${img(p.image, 'mouse-photo', p.title, p.kind)}
+        ${keys.map((k) => {
+          const pt = pos[k.name] || [50, 50];
+          const side = ['M1', 'M4', 'M5'].includes(k.name) ? 'hs-left' : k.name === 'M2' ? 'hs-right' : k.name === 'M3' ? 'hs-top' : '';
+          return `<button class="hotspot ${k.name === active ? 'is-active' : ''}"
+                    style="left:${pt[0]}%;top:${pt[1]}%"
+                    data-action="select-key" data-key="${esc(k.name)}"
+                    aria-label="${esc(k.name)}">
+                    <span class="hs-label ${side}">${esc(k.label || k.name)} ${esc(k.name)}</span>
+                  </button>`;
+        }).join('')}
+      </div>
     </div>`;
   }
 
