@@ -137,6 +137,8 @@
       cfg.cpiX = cpi & 0xffff;
       cfg.cpiY = (cpi >>> 16) & 0xffff || cfg.cpiX;
       cfg.xy = cfg.cpiY !== cfg.cpiX;
+      const stage = cfg.dpiLevels.findIndex((v) => Number(v) === cfg.cpiX);
+      if (stage >= 0) cfg.activeLevel = stage;
     }
     if (Number.isFinite(Number(info.pr)) && Number(info.pr) > 0) cfg.polling = Number(info.pr);
     if (info.lod != null) cfg.lod = Number(info.lod);
