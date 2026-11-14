@@ -1,6 +1,6 @@
 {
   "name": "better-rawmhub",
-  "version": "2.0.14",
+  "version": "2.0.15",
   "private": true,
   "description": "Browser-native RAWM HUB rebuild with WebHID transport",
   "scripts": {
@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@phosphor-icons/core": "^2.1.1",
+    "pngjs": "^7.0.0",
     "wrangler": "^4.161.0"
   },
   "engines": {
