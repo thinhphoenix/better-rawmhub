@@ -474,8 +474,8 @@ select.input option { background: #141414; color: #e9ebee; }
   background-size: auto, 16px 16px;
   border-bottom: 1px solid var(--line);
 }
-.mouse-wrap { position: relative; width: min(320px, 76%); }
-.mouse-wrap svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 26px 30px rgba(0, 0, 0, 0.65)); }
+.mouse-wrap { position: relative; width: min(280px, 80%); }
+.mouse-photo { display: block; width: 100%; height: auto; max-height: none; object-fit: contain; filter: drop-shadow(0 26px 30px rgba(0, 0, 0, 0.65)); }
 .mouse-wrap .hotspot { width: 22px; height: 22px; }
 .mouse-wrap .hotspot .hs-label { top: auto; bottom: -21px; background: rgba(8, 9, 11, 0.9); border: 1px solid var(--line); }
 .mouse-wrap .hotspot .hs-label.hs-top { top: -22px; bottom: auto; }

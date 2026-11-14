@@ -263,43 +263,11 @@
     const keys = (p.keys || []).slice().sort((a, b) => String(a.label || a.name).localeCompare(String(b.label || b.name)));
     const pos = {
       M1: [36, 19], M2: [64, 19], M3: [50, 17], M4: [19, 57],
-      M5: [19, 67], M6: [50, 63], M7: [50, 80], M8: [50, 90],
+      M5: [19, 67], M6: [50, 55], M7: [50, 80], M8: [50, 90],
     };
     return `<div class="mouse-map">
       <div class="mouse-wrap">
-        <svg viewBox="0 0 360 520" role="img" aria-label="${esc(p.title)} top view">
-          <defs>
-            <linearGradient id="mouseBody" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#242a31"/>
-              <stop offset=".55" stop-color="#151a20"/>
-              <stop offset="1" stop-color="#0b0e11"/>
-            </linearGradient>
-            <linearGradient id="mouseWheel" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#313840"/>
-              <stop offset="1" stop-color="#161b21"/>
-            </linearGradient>
-            <radialGradient id="mouseGlow" cx=".5" cy=".5" r=".5">
-              <stop offset="0" stop-color="#4be38a" stop-opacity=".22"/>
-              <stop offset="1" stop-color="#4be38a" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <ellipse cx="180" cy="500" rx="104" ry="13" fill="#000" opacity=".55"/>
-          <ellipse cx="180" cy="470" rx="120" ry="40" fill="url(#mouseGlow)"/>
-          <path d="M180 16c-48 0-82 34-90 100l-14 214c-5 92 39 154 104 154s109-62 104-154l-14-214c-8-66-42-100-90-100Z"
-                fill="url(#mouseBody)" stroke="#39414a" stroke-width="1.4"/>
-          <path d="M180 17v82M180 132v40" stroke="#090b0e" stroke-width="2.2" stroke-linecap="round" opacity=".9"/>
-          <path d="M89 162c46 15 136 15 182 0" fill="none" stroke="#090b0e" stroke-width="2" opacity=".85"/>
-          <rect x="164" y="38" width="32" height="98" rx="16" fill="#0e1115" stroke="#3b434d" stroke-width="1.2"/>
-          <rect x="169" y="46" width="22" height="54" rx="11" fill="url(#mouseWheel)"/>
-          <path d="M172 58h16M172 66h16M172 74h16M172 82h16" stroke="#0c0f13" stroke-width="1.6" opacity=".9"/>
-          <rect x="50" y="272" width="34" height="48" rx="11" fill="#1c222a" stroke="#4a525c" stroke-width="1.3"/>
-          <rect x="50" y="328" width="34" height="42" rx="11" fill="#1c222a" stroke="#4a525c" stroke-width="1.3"/>
-          <path d="M60 284v24M60 338v22" stroke="#0c0f13" stroke-width="1.6" opacity=".7"/>
-          <circle cx="180" cy="326" r="10" fill="#12161b" stroke="#39414a" stroke-width="1.2"/>
-          <circle cx="180" cy="326" r="3.2" fill="#4a525c"/>
-          <circle cx="180" cy="414" r="6" fill="#0d1014" stroke="#333a43" stroke-width="1.2"/>
-          <path d="M163 428h34" stroke="#333a43" stroke-width="1.2" stroke-linecap="round" opacity=".7"/>
-        </svg>
+        ${img(p.image, 'mouse-photo', p.title, p.kind)}
         ${keys.map((k) => {
           const pt = pos[k.name] || [50, 50];
           const side = ['M1', 'M4', 'M5'].includes(k.name) ? 'hs-left' : k.name === 'M2' ? 'hs-right' : k.name === 'M3' ? 'hs-top' : '';
