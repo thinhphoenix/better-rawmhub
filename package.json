@@ -1,6 +1,6 @@
 {
   "name": "better-rawmhub",
-  "version": "2.0.16",
+  "version": "2.0.17",
   "private": true,
   "description": "Browser-native RAWM HUB rebuild with WebHID transport",
   "scripts": {

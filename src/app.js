@@ -262,8 +262,8 @@
   function mouseMap(p, active) {
     const keys = (p.keys || []).slice().sort((a, b) => String(a.label || a.name).localeCompare(String(b.label || b.name)));
     const pos = {
-      M1: [36, 19], M2: [64, 19], M3: [50, 17], M4: [19, 57],
-      M5: [19, 67], M6: [50, 55], M7: [50, 80], M8: [50, 90],
+      M1: [33, 20], M2: [67, 20], M3: [50, 16], M4: [14, 41],
+      M5: [14, 50], M6: [50, 47], M7: [50, 80], M8: [50, 90],
     };
     return `<div class="mouse-map">
       <div class="mouse-wrap">
