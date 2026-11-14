@@ -50,7 +50,7 @@ for (const [id, name] of Object.entries(iconMap)) {
   iconSprite += `<symbol id="i-${id}" viewBox="0 0 256 256">${inner}</symbol>`;
 }
 
-const mime = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
+const mime = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 const dataUri = (path) => {
   const buf = readFileSync(resolve(root, path));
   return `data:${mime[extname(path)] || 'application/octet-stream'};base64,${buf.toString('base64')}`;
@@ -65,7 +65,11 @@ for (const d of catalogue) {
 }
 
 const logo = dataUri('assets/rawm-hub.png');
-const template = templateSrc.split('assets/rawm-hub.png').join(logo).split('__VERSION__').join(pkg.version);
+const favicon = dataUri('assets/favicon.ico');
+const template = templateSrc
+  .split('assets/rawm-hub.png').join(logo)
+  .split('assets/favicon.ico').join(favicon)
+  .split('__VERSION__').join(pkg.version);
 
 const json = JSON.stringify(catalogue).replace(/<\//g, '<\\/');
 const out = template
