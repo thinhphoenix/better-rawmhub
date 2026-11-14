@@ -50,8 +50,8 @@
     }
   };
 
-  const mount = (el, node, block = false) => {
-    if (!el.parentNode) return;
+  const mount = (el, node, block = false, meta = {}) => {
+    if (!el.parentNode) return null;
     const host = document.createElement('span');
     host.className = 'ant-host' + (block ? ' ant-host-block' : '');
     if (el.classList.contains('topbar-extra')) host.classList.add('topbar-extra');
@@ -60,7 +60,9 @@
     el.style.display = 'none';
     const root = ReactDOMClient.createRoot(host);
     root.render(h(ConfigProvider, { theme: themeConfig }, node));
-    roots.push({ root, host, el });
+    const entry = { root, host, el, sync: null, bind: null, ...meta };
+    roots.push(entry);
+    return entry;
   };
 
   const iconNode = (el) => {
@@ -142,17 +144,25 @@
 
     root.querySelectorAll('input.range').forEach((el) => {
       if (el.dataset.ant || el.closest('.ant-host')) return;
-      mount(el, h(Slider, {
+      const sliderNode = (value) => h(ConfigProvider, { theme: themeConfig }, h(Slider, {
         min: Number(el.min) || 0,
         max: Number(el.max) || 100,
         step: Number(el.step) || 1,
-        value: Number(el.value),
+        value,
         tooltip: { formatter: (v) => v },
-        onChange: (value) => {
-          el.value = value;
+        onChange: (next) => {
+          el.value = next;
           el.dispatchEvent(new Event('input', { bubbles: true }));
         },
-      }), true);
+      }));
+      const entry = mount(el, sliderNode(Number(el.value)), true, { bind: el.dataset.bind || null });
+      if (!entry) return;
+      // Allows the app to push a value changed elsewhere (+/- buttons, device
+      // notifications) into the mounted slider without rebuilding the page.
+      entry.sync = (value) => {
+        el.value = value;
+        entry.root.render(sliderNode(Number(value)));
+      };
     });
 
     root.querySelectorAll('.seg').forEach((el) => {
@@ -171,6 +181,11 @@
   };
 
   window.__antMount = (root) => scan(root || document);
+  window.__antSyncValue = (bind, value) => {
+    roots.forEach((entry) => {
+      if (entry.bind === bind && entry.sync) entry.sync(value);
+    });
+  };
   window.__antCleanup = cleanup;
   scan(document);
 })();

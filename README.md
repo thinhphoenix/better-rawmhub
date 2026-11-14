@@ -1,34 +1,33 @@
 # RAWM HUB — rebuilt
 
-A cleaner, browser-native configurator for RAWM mice and keyboards, rebuilt from
-[rawmtech.com/hub.html](https://www.rawmtech.com/hub.html) with the layout language of
-[control.openmouse.app](https://control.openmouse.app) and [hub.atk.pro](https://hub.atk.pro).
+A browser-native configurator for RAWM mice and keyboards, rebuilt from
+[rawmtech.com/hub.html](https://www.rawmtech.com/hub.html). It keeps the device
+features of the original hub, uses the layout language of
+[control.openmouse.app](https://control.openmouse.app) and
+[hub.atk.pro](https://hub.atk.pro), and talks to real hardware over WebHID
+(vendor `0x1915`). There is no demo mode.
 
-The deliverable is a **single self-contained `index.html`** with React and Ant Design
-bundled in, no runtime CDN and no build step needed to run the built file. It talks to real
-hardware over WebHID (vendor `0x1915`) — there is no demo mode.
+The deliverable is a **single self-contained `index.html`** with React, Ant
+Design, fonts, icons and product renders inlined. No runtime CDN, no build step
+needed to open the built file.
 
-![Device overview](shots/blue-device.png)
+![Device overview](shots/device.png)
+
+![Button mapping](shots/buttons.png)
 
 ## Run it
 
 ```bash
-# first time only, to rebuild from src/
-npm install
-npm run build
-
-# starts the local server and opens Chrome at http://localhost:8080
-npm start
-
-# server only (no browser launch)
-npm run serve
+npm install        # first time only
+npm start          # builds nothing, starts the server and opens Chrome
+npm run serve      # server only, no browser launch
 ```
 
-`npm start -- --no-open` keeps the server running without opening a window. If Chrome is
-not found, it falls back to the default browser.
+Open <http://localhost:8080>. Use **Chrome or Edge** on desktop; WebHID is not
+available in Safari or Firefox.
 
-Open <http://localhost:8080>. Use **Chrome or Edge** on desktop; WebHID is not exposed in
-Safari or Firefox.
+`npm start -- --no-open` keeps the server running without opening a window, and
+falls back to the default browser when Chrome is not installed.
 
 ## What is here
 
@@ -40,113 +39,140 @@ Safari or Firefox.
 | Lighting | Loop / Customize / DPI-level modes, colour palette, brightness/speed, glass mode, per-zone switches, per-key painting for keyboards |
 | Advanced keys | SOCD, tap-hold (MT), rapid-trigger priority (RS) and dynamic keystroke (DKS) editors |
 | Macros | Macro library, action timeline, delay editing and capture |
-| Firmware | Revision and channel report, vendor updater hand-off, factory reset |
+| Firmware | Revision, channel report, vendor updater hand-off and factory reset |
 | Downloads | Official desktop / Android / iOS builds and local-run instructions |
 | Console | Live WebHID packet log (TX/RX), copyable for debugging |
 
-Scope is intentionally limited to this list — no extra pages or controls beyond it.
+Scope is intentionally limited to this list — no extra pages or controls beyond
+the original hub.
 
-Connection is hardware-only: Chrome/Edge prompts for a RAWM device on vendor `0x1915`.
+## Settings apply automatically
+
+There is no **Write to device** button:
+
+- Every settings change is written to the mouse right away, coalesced by a
+  ~260 ms debounce so slider drags and repeated clicks send one packet.
+- After you stop interacting for ~1.2 s the app sends **save to onboard memory**,
+  so the change survives a reboot.
+- The page header shows **Unsaved changes → In sync** while this happens.
+- Live device notifications (battery, CPI, polling, profile) update the visible
+  values in place. Changes never rebuild the page, so images, Ant Design
+  controls and scroll position stay put — no flicker.
+
+Written over WebHID: mouse parameters (`CONFIG_TYPE_MOUSE_PARAM`), lighting,
+brightness, sleep time, save-to-flash and factory restore.
+
+**Not written to hardware yet:** button remaps, macros and HS keyboard
+configuration. Their UIs are complete and staged locally; the key tables differ
+per model and were not verified against a physical keyboard. The console log is
+there to finish that work with a device in hand.
 
 ## Real device support
 
-The transport was reconstructed from the vendor bundle (`library.min.js`, build 2026-06-01)
-and the public device catalogue. It implements:
+The transport was reconstructed from the vendor bundle (`library.min.js`, build
+2026-06-01) and the public device catalogue. It implements:
 
 - WebHID discovery for vendor `0x1915`, handshake and re-query
-- Two-stage receiver handshake: query the dongle directly, then query the paired device on channel 0 and adopt its product id, name and render
-- The `CMD` protocol: `QUERY` / `QUERY_RESULT` / `CONFIG` / `ACTION` / `NOTIFY` framing
+- Two-stage receiver handshake: query the dongle directly, then query the paired
+  device on channel 0 and adopt its product id, name and render
+- The `CMD` protocol: `QUERY` / `QUERY_RESULT` / `CONFIG` / `ACTION` / `NOTIFY`
+  framing
 - Receiver routing (extended packet, channel 0) and direct USB framing
 - CRC-16/CCITT-FALSE wrapping (`CONFIG_TYPE_CRC`) when the device reports `crc: 1`
-- Query-result JSON parsing (revision, battery, CPI, polling, LOD, angle, ripple, profiles)
-- Live notifications (battery, CPI, polling, onboard index, RSSI)
-- Writes: mouse parameters (`CONFIG_TYPE_MOUSE_PARAM`), lighting, brightness, sleep time,
-  save-to-flash and factory restore. Every settings change is written automatically
-  (roughly 250 ms debounce) and saved to onboard memory once you stop interacting, so
-  there is no manual "Write to device" step.
+- Query-result JSON parsing (revision, battery, CPI, polling, LOD, angle, ripple,
+  profiles), plus live notifications
+- Output-report length auto-detection (32/64 bytes) with fallback, and TX
+  fragmentation for long config packets
 - HS keyboard firmware handshake (`IQ_GET_SOFT_DRV_VER`) with raw logging
-
-**Not written to hardware yet:** button remaps, macros and HS keyboard configuration. Their
-UIs are complete and staged locally; the key tables differ per model and were not verified
-against a physical keyboard. The console log is there to finish that work with a device in
-hand.
 
 The packet layout notes live at the top of `src/hid.js`.
 
 ## Project layout
 
 ```
-index.html            generated single-file build (open this)
-src/template.html     shell + SVG sprite
-src/styles.css        design system (dark)
-src/ant-controls.js   mounts real antd Button / Switch / Select / Slider / Segmented
-src/hid.js            WebHID transport, framing, CRC, config packets
-src/app.js            views, state, interactions, router
-assets/ant.js         React + antd bundle (inlined by the build)
-assets/products/      downloaded per-model renders (inlined by the build)
-assets/rawm-hub.png   official logo (inlined by the build)
-tools/ant-entry.js    antd bundle entry point
-src/catalogue.json    device catalogue (36 entries, vendor data)
-tools/build.mjs       inlines CSS/JS/JSON into index.html
+index.html               generated single-file build (open this)
+public/index.html        same build, ready for Cloudflare Pages
+src/template.html        shell, header, favicon reference
+src/styles.css           design system (blue, flat, dark)
+src/ant-controls.js      real antd Button / Switch / Select / Slider / Segmented
+src/hid.js               WebHID transport, framing, CRC, config packets
+src/app.js               views, state, auto-apply, interactions, router
+src/catalogue.json       device catalogue (36 entries, vendor data)
+assets/ant.js            React + antd bundle (inlined by the build)
+assets/products/         per-model renders (inlined by the build)
+assets/rawm-hub.png      official logo, bolt recoloured to theme blue
+assets/favicon.ico       favicon (inlined by the build)
+tools/build.mjs          inlines CSS, JS, JSON, images, icons and favicon
+tools/start.mjs          local server + Chrome launcher
+tools/release.mjs        bump patch, build, deploy, commit, push
+tools/test-transport.mjs framing, CRC and receiver-routing tests
+tools/recolor-logo.mjs   recolours the logo bolt to #3b82f6
 tools/fetch-products.mjs downloads per-model renders into assets/products/
-tools/test-transport.mjs  framing, CRC and receiver-routing tests
-reference/            vendor bundle, catalogue and product renders used for research
-shots/                UI screenshots
+reference/               vendor bundle and catalogue used for research (ignored)
+wrangler.toml            Cloudflare Pages project config
+shots/                   README screenshots
 ```
 
-Rebuild after editing `src/`:
+Rebuild after editing anything in `src/`:
 
 ```bash
 npm run build                    # bundles antd, then inlines everything
-node tools/test-transport.mjs    # framing, CRC and receiver-routing checks
+node tools/test-transport.mjs    # 7 framing / CRC / routing checks
 ```
+
+`index.html` and `public/index.html` are generated — edit `src/`, not the build.
 
 ## Versioning
 
-`package.json` is the single source of truth. The build injects that version into the rail
-footer and `<meta name="app-version">`.
+`package.json` is the single source of truth. The build injects the version into
+the rail footer and `<meta name="app-version">`.
 
 ```bash
-npm run bump      # 2.0.0 -> 2.0.1, no build/deploy
+npm run bump      # 2.0.19 -> 2.0.20, no build or deploy
 npm run release   # bump patch + build + deploy + commit + push
 ```
 
 ## Deploy (Cloudflare Pages)
 
-The build writes a deployable folder to `public/` (single `index.html`).
+The build writes a deployable folder to `public/` (a single `index.html`).
 
 ```bash
-npm run cf:login       # once, opens the browser
-npm run deploy         # build + upload to the Pages project
+npm run cf:login   # once, opens the browser
+npm run deploy     # build + upload to the Pages project
 ```
 
-- Live URL: `https://better-rawmhub.pages.dev`
+- Live URL: <https://better-rawmhub.pages.dev>
 - Pages project: `better-rawmhub`, production branch `main`.
-- `public/` is git-ignored; it is rebuilt from `src/` every deploy.
-- For CI, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, then run `npm run deploy`.
+- Build command for CI/Cloudflare: `npm run build`, output directory: `public`.
+  Do **not** use `npm run release` there — it commits and deploys recursively.
+- `public/` is git-ignored; it is rebuilt from `src/` on every deploy.
+- For CI, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, then run
+  `npm run deploy`.
 
-WebHID works on the `*.pages.dev` HTTPS URL; no extra headers or service worker are needed.
+WebHID works on the `*.pages.dev` HTTPS URL; no extra headers or service worker
+are needed.
 
 ## Design
 
 - Dark cockpit shell: 250px rail, sticky topbar, 1240px content column.
-- Official RAWM HUB logo in the rail; product renders come from the vendor's
-  `/hub/product/{productId}/{model}/connected.png` endpoint. The build downloads one
-  render per mouse and inlines it (along with the logo and catalogue icons), so
-  `index.html` never depends on the CDN or the `assets/` folder for images.
-- Devices without a downloaded render (receivers or a few models) use the inline SVG
-  placeholder; `src/` no longer references `assets/devices` at all.
-- Blue accent `#3b82f6`, flat near-black surfaces, 1px hairlines.
-- 8px card radius, 4px controls, no gradients or decorative glows.
+- Blue accent `#3b82f6`; flat near-black surfaces and 1px hairlines.
+- 8px card radius, 4px controls; no gradients, glows, grid overlays or spinning
+  hero effects.
 - Instrument Sans for UI, JetBrains Mono for numbers and micro-labels.
-- Controls are real Ant Design 5 components (Button, Switch, Select, Slider, Segmented)
-  mounted over the custom layout; React and antd are bundled into `index.html`.
+- Controls are real Ant Design 5 components (Button, Switch, Select, Slider,
+  Segmented) mounted over the custom layout; React and antd are bundled into
+  `index.html`.
+- Official RAWM HUB logo in the rail, bolt recoloured to the theme blue; product
+  renders come from the vendor's `/hub/product/{productId}/{model}/` endpoint
+  and are inlined at build time.
+- Devices without a downloaded render (receivers or a few models) use the inline
+  SVG placeholder.
 - Responsive down to 390px: the rail collapses to an icon strip.
 
 ## Notes
 
-- Product images, names and the device catalogue belong to RAWM / Shenzhen Renmo Electronic
-  Technology and are loaded from their CDN. This is an unofficial interface rebuild.
-- Firmware flashing is intentionally not attempted in the browser; the firmware page hands
-  off to the official desktop updater.
+- Product images, names and the device catalogue belong to RAWM / Shenzhen
+  Renmo Electronic Technology. This is an unofficial interface rebuild.
+- Firmware flashing is intentionally not attempted in the browser; the firmware
+  page hands off to the official desktop updater.
 - `reference/` is research material only and is not required at runtime.

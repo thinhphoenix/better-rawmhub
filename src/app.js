@@ -347,7 +347,7 @@
         <div class="rings"><i></i><i></i><i></i></div>
         <div class="stage-tags">
           <span class="tag accent"><span class="dot on"></span>${stateLabel}</span>
-          ${battery != null ? `<span class="tag">${icon('battery')} ${battery}%${charging ? ' · charging' : ''}</span>` : ''}
+          ${battery != null ? `<span class="tag">${icon('battery')} <span data-live="battery-tag">${battery}%${charging ? ' · charging' : ''}</span></span>` : ''}
         </div>
         ${img(p.image, 'hero-img', p.title, p.kind)}
         <span class="stage-model">${esc(p.title)} ${p.sensor ? '· ' + esc(p.sensor) : ''}</span>
@@ -366,22 +366,22 @@
           <div class="stat">
             <div class="stat-label"><span>Sensitivity</span>${icon('sliders')}</div>
             <div class="stat-value"><span data-live="cpiX">${fmt(c.cpiX)}</span><small>${c.xy ? '× ' + fmt(c.cpiY) + ' dpi' : 'dpi'}</small></div>
-            <div class="stat-bar"><i style="width:${clamp((c.cpiX / ((p.cpi_range && p.cpi_range[1]) || 30000)) * 100, 4, 100)}%"></i></div>
+            <div class="stat-bar"><i data-bar="cpi" style="width:${clamp((c.cpiX / ((p.cpi_range && p.cpi_range[1]) || 30000)) * 100, 4, 100)}%"></i></div>
           </div>
           <div class="stat">
             <div class="stat-label"><span>Polling</span>${icon('wave')}</div>
-            <div class="stat-value">${fmt(c.polling)}<small>hz</small></div>
-            <div class="stat-bar"><i style="width:${clamp((c.polling / 8000) * 100, 4, 100)}%"></i></div>
+            <div class="stat-value"><span data-live="polling">${fmt(c.polling)}</span><small>hz</small></div>
+            <div class="stat-bar"><i data-bar="polling" style="width:${clamp((c.polling / 8000) * 100, 4, 100)}%"></i></div>
           </div>
           <div class="stat">
             <div class="stat-label"><span>Battery</span>${icon('battery')}</div>
-            <div class="stat-value">${battery != null ? battery : '—'}<small>${battery != null ? '%' + (charging ? ' · chg' : '') : 'wired'}</small></div>
-            <div class="stat-bar"><i style="width:${battery != null ? battery : 0}%;${battery != null && battery < 25 ? 'background:var(--danger)' : ''}"></i></div>
+            <div class="stat-value"><span data-live="battery">${battery != null ? battery : '—'}</span><small>${battery != null ? '%' + (charging ? ' · chg' : '') : 'wired'}</small></div>
+            <div class="stat-bar"><i data-bar="battery" style="width:${battery != null ? battery : 0}%;${battery != null && battery < 25 ? 'background:var(--danger)' : ''}"></i></div>
           </div>
           <div class="stat">
             <div class="stat-label"><span>Profile</span>${icon('chip')}</div>
-            <div class="stat-value">${(c.onboard | 0) + 1}<small>/ ${onboardMax}</small></div>
-            <div class="stat-bar"><i style="width:${(((c.onboard | 0) + 1) / onboardMax) * 100}%"></i></div>
+            <div class="stat-value"><span data-live="profile">${(c.onboard | 0) + 1}</span><small>/ ${onboardMax}</small></div>
+            <div class="stat-bar"><i data-bar="profile" style="width:${(((c.onboard | 0) + 1) / onboardMax) * 100}%"></i></div>
           </div>
         </div>
       </div>
@@ -391,7 +391,7 @@
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('sliders')}<div><h2>Sensitivity</h2><p>${c.dpiLevels.length} onboard stages</p></div></div></div>
         <div class="card-body">
-          <div class="dpi-readout"><span class="num">${fmt(c.cpiX)}</span><span class="unit">DPI</span></div>
+          <div class="dpi-readout"><span class="num" data-live="cpiX">${fmt(c.cpiX)}</span><span class="unit">DPI</span></div>
           <div class="dpi-stages">
             ${levels.slice(0, 8).map((v, i) => `
               <button class="dpi-stage ${i === c.activeLevel ? 'is-active' : ''}" data-action="dpi-stage" data-index="${i}">
@@ -406,7 +406,7 @@
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('wave')}<div><h2>Polling rate</h2><p>Updates per second</p></div></div></div>
         <div class="card-body">
-          <div class="dpi-readout"><span class="num">${fmt(c.polling)}</span><span class="unit">HZ</span></div>
+          <div class="dpi-readout"><span class="num" data-live="polling">${fmt(c.polling)}</span><span class="unit">HZ</span></div>
           <div class="seg-wrap" style="margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr)">
             ${(p.polling_rates || [125, 250, 500, 1000]).map((r) => `<button class="chip ${r === c.polling ? 'is-active' : ''}" data-action="polling" data-value="${r}" style="justify-content:center">${fmt(r)}</button>`).join('')}
           </div>
@@ -415,12 +415,12 @@
       </section>
 
       <section class="card">
-        <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Lighting</h2><p>${esc(LIGHT_PRESETS.find((l) => l.mode === c.lightMode)?.name || 'Breathe')} · ${c.brightness}%</p></div></div></div>
+        <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Lighting</h2><p><span data-live="light-mode-name">${esc(LIGHT_PRESETS.find((l) => l.mode === c.lightMode)?.name || 'Breathe')}</span> · <span data-live="brightness">${c.brightness}</span>%</p></div></div></div>
         <div class="card-body">
           ${p.light ? `
           <div class="light-stage" style="min-height:118px;border-radius:9px;--glow:${esc(c.color)}">
-            <div style="position:absolute;inset:10px;border-radius:7px;background:radial-gradient(50% 80% at 50% 50%, ${esc(c.color)}33, transparent 70%)"></div>
-            <div style="position:relative;z-index:1;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:${esc(c.color)}">${esc((LIGHT_PRESETS.find((l) => l.mode === c.lightMode)?.name || 'breathe').toUpperCase())}</div>
+            <div class="light-glow" style="position:absolute;inset:10px;border-radius:7px;background:radial-gradient(50% 80% at 50% 50%, ${esc(c.color)}33, transparent 70%)"></div>
+            <div style="position:relative;z-index:1;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:${esc(c.color)}"><span data-live="light-mode-upper">${esc((LIGHT_PRESETS.find((l) => l.mode === c.lightMode)?.name || 'breathe').toUpperCase())}</span></div>
           </div>
           <button class="link-btn" style="margin-top:12px" data-page="lighting">Open lighting studio ${icon('arrow')}</button>
           ` : `<div class="empty" style="padding:22px 10px">${icon('bulb')}<p>No RGB lighting on this device.</p></div>`}
@@ -434,7 +434,6 @@
           <div class="ch-title">${icon('chip')}<div><h2>Onboard profiles</h2><p>Select the slot written by the device</p></div></div>
           <div class="row" style="gap:6px">
             <button class="btn btn-ghost btn-sm" data-action="factory-reset">${icon('refresh')}<span>Restore</span></button>
-            <button class="btn btn-ghost btn-sm" data-action="apply">${icon('check')}<span>Write</span></button>
           </div>
         </div>
         <div class="card-body">
@@ -590,7 +589,7 @@
           </div>
           <div class="card-foot">
             <button class="btn btn-ghost btn-sm" data-action="factory-reset">${icon('refresh')}<span>Restore</span></button>
-            <button class="btn btn-primary btn-sm" data-action="apply">${icon('check')}<span>Apply &amp; onboard</span></button>
+            <span class="help">Changes apply and save automatically.</span>
           </div>
         </section>
 
@@ -804,15 +803,15 @@
     return `
     ${pageHead('Lighting studio', 'Lighting',
       'Mode, colour and brightness for every zone. Preview reflects the values written on apply.',
-      `<span class="pill">${preset.name} · <span data-live="brightness">${c.brightness}</span>%</span>`)}
+      `<span class="pill"><span data-live="light-mode-name">${preset.name}</span> · <span data-live="brightness">${c.brightness}</span>%</span>`)}
 
     <div class="split">
       <section class="card">
-        <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Preview</h2><p>${esc(preset.name)} · ${esc(c.color)}</p></div></div><span class="pill accent">LIVE</span></div>
+        <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Preview</h2><p><span data-live="light-mode-name">${esc(preset.name)}</span> · <span data-live="color-hex">${esc(c.color)}</span></p></div></div><span class="pill accent">LIVE</span></div>
         <div class="card-body">
           <div class="light-stage" style="--glow:${esc(c.color)}">
             ${img(p.image, '', p.title, p.kind)}
-            <span class="ls-caption">${esc(preset.name)} · <span data-live="brightness">${c.brightness}</span>% · <span data-live="speed">${c.speed}</span>% speed</span>
+            <span class="ls-caption"><span data-live="light-mode-name">${esc(preset.name)}</span> · <span data-live="brightness">${c.brightness}</span>% · <span data-live="speed">${c.speed}</span>% speed</span>
           </div>
           <div class="zone-list" style="margin-top:14px;border-top:1px solid var(--line)">
             ${zones.map((z, i) => `
@@ -842,7 +841,7 @@
             <span class="field-label">Colour</span>
             <div class="swatches">
               ${COLORS.map((col) => `<button class="swatch ${col.toLowerCase() === c.color.toLowerCase() ? 'is-active' : ''}" style="--sw:${col}" data-action="color" data-color="${col}" aria-label="${col}"></button>`).join('')}
-              <span class="mono" style="font-size:10px;color:var(--faint);margin-left:4px">${esc(c.color.toUpperCase())}</span>
+              <span class="mono" data-live="color-hex" style="font-size:10px;color:var(--faint);margin-left:4px">${esc(c.color.toUpperCase())}</span>
             </div>
           </div>
           <div style="height:14px"></div>
@@ -1490,6 +1489,109 @@ python -m http.server 8080</pre>
     }
   }
 
+  // Applies the current state to the already-rendered DOM. Settings changes use
+  // this instead of a full render so images, Ant Design controls and scroll
+  // position stay untouched (no blink between edits).
+  function refreshSettingsUi() {
+    const c = state.cfg;
+    if (!c) return;
+    updateDirtyPill();
+
+    const text = (key, value) => $$(`[data-live="${key}"]`).forEach((el) => { el.textContent = value; });
+    const out = (bind, value) => $$(`[data-out="${bind}"]`).forEach((el) => {
+      const suffix = el.textContent.replace(/^-?[\d,.]+/, '');
+      el.textContent = (Math.abs(Number(value)) >= 1000 ? fmt(value) : value) + suffix;
+    });
+
+    text('cpiX', fmt(c.cpiX));
+    if (c.xy) text('cpiY', fmt(c.cpiY));
+    text('polling', fmt(c.polling));
+    text('brightness', String(c.brightness));
+    text('speed', String(c.speed));
+    out('cpiX', c.cpiX);
+    if (c.xy) out('cpiY', c.cpiY);
+    out('brightness', c.brightness);
+    out('speed', c.speed);
+
+    const info = state.info || {};
+    const battery = Number.isFinite(Number(info.battery)) ? Number(info.battery) : null;
+    const charging = !!Number(info.charging);
+    const profileEl = $('[data-live="profile"]');
+    if (profileEl) profileEl.textContent = String((c.onboard | 0) + 1);
+    $$('[data-live="battery"]').forEach((el) => { el.textContent = battery != null ? String(battery) : '—'; });
+    $$('[data-live="battery-tag"]').forEach((el) => {
+      el.textContent = battery != null ? `${battery}%${charging ? ' · charging' : ''}` : 'wired';
+    });
+    const batteryUnit = $('[data-live="battery"]') && $('[data-live="battery"]').nextElementSibling;
+    if (batteryUnit) batteryUnit.textContent = battery != null ? '%' + (charging ? ' · chg' : '') : 'wired';
+
+    const p = state.profile || {};
+    const setBar = (name, pct, colour) => $$(`[data-bar="${name}"]`).forEach((i) => {
+      i.style.width = clamp(pct, 0, 100) + '%';
+      i.style.background = colour || '';
+    });
+    setBar('cpi', (c.cpiX / ((p.cpi_range && p.cpi_range[1]) || 30000)) * 100);
+    setBar('polling', (c.polling / 8000) * 100);
+    if ($('[data-bar="battery"]')) setBar('battery', battery || 0, battery != null && battery < 25 ? 'var(--danger)' : '');
+    if ($('[data-bar="profile"]')) setBar('profile', (((c.onboard | 0) + 1) / (c.onboardMax || 5)) * 100);
+
+    $$('.dpi-stage[data-index]').forEach((el) => {
+      const i = Number(el.dataset.index);
+      el.classList.toggle('is-active', i === c.activeLevel);
+      const v = el.querySelector('.ds-v');
+      if (v && c.dpiLevels[i] != null) v.textContent = fmt(c.dpiLevels[i]);
+    });
+
+    const syncRange = (bind, value) => {
+      $$(`input.range[data-bind="${bind}"]`).forEach((input) => {
+        if (Number(input.value) === Number(value)) return;
+        input.value = value;
+        const lo = Number(input.min) || 0;
+        const hi = Number(input.max) || 100;
+        input.style.setProperty('--pct', clamp(((Number(value) - lo) / (hi - lo)) * 100, 0, 100) + '%');
+        if (window.__antSyncValue) window.__antSyncValue(bind, value);
+      });
+    };
+    syncRange('cpiX', c.cpiX);
+    if (c.xy) syncRange('cpiY', c.cpiY);
+    syncRange('brightness', c.brightness);
+    syncRange('speed', c.speed);
+
+    const setActive = (selector, attr, value) => $$(selector).forEach((el) => {
+      el.classList.toggle('is-active', String(el.dataset[attr]) === String(value));
+    });
+    setActive('[data-action="polling"]', 'value', c.polling);
+    setActive('[data-action="lod"]', 'value', c.lod);
+    setActive('[data-action="power"]', 'value', c.powerMode);
+    setActive('[data-action="turbo-mode"]', 'value', c.wireless && c.wireless.mode);
+    setActive('[data-action="onboard"]', 'index', c.onboard);
+    setActive('[data-action="light-mode"]', 'mode', c.lightMode);
+    $$('[data-action="color"]').forEach((el) => {
+      el.classList.toggle('is-active', String(el.dataset.color).toLowerCase() === String(c.color).toLowerCase());
+    });
+
+    const preset = LIGHT_PRESETS.find((l) => l.mode === c.lightMode) || LIGHT_PRESETS[0];
+    $$('.light-stage').forEach((el) => el.style.setProperty('--glow', c.color));
+    $$('.light-glow').forEach((el) => {
+      el.style.background = `radial-gradient(50% 80% at 50% 50%, ${c.color}33, transparent 70%)`;
+    });
+    text('light-mode-name', preset.name);
+    text('light-mode-upper', preset.name.toUpperCase());
+    text('color-hex', c.color.toUpperCase());
+    $$('[data-live="light-mode-upper"]').forEach((el) => { el.parentElement.style.color = c.color; });
+    $$('[data-action="light-mode"] .mt-preview').forEach((el) => {
+      if (el.closest('[data-mode="steady"]')) el.style.background = c.color;
+    });
+    $$('.zone-row .zr-dot').forEach((el) => el.style.setProperty('--zc', c.color));
+
+    $$('.pk[data-index]').forEach((el) => {
+      const i = Number(el.dataset.index);
+      const col = c.painted && c.painted[i];
+      el.classList.toggle('is-active', !!col);
+      el.style.setProperty('--c', col || '#171b21');
+    });
+  }
+
   document.addEventListener('click', (e) => {
     const pageBtn = e.target.closest('[data-page]');
     if (pageBtn) { go(pageBtn.dataset.page); return; }
@@ -1549,7 +1651,7 @@ python -m http.server 8080</pre>
         c.activeLevel = i;
         c.cpiX = c.dpiLevels[i] || c.cpiX;
         if (!c.xy) c.cpiY = c.cpiX;
-        markDirty(); render();
+        markDirty(); refreshSettingsUi();
         break;
       }
       case 'dpi-add': {
@@ -1576,7 +1678,7 @@ python -m http.server 8080</pre>
         c.cpiX = clamp(Math.round((c.cpiX + d) / step) * step, min, max);
         if (!c.xy) c.cpiY = c.cpiX;
         c.dpiLevels[c.activeLevel] = c.cpiX;
-        markDirty(); render();
+        markDirty(); refreshSettingsUi();
         break;
       }
       case 'dpi-reset': {
@@ -1586,20 +1688,20 @@ python -m http.server 8080</pre>
         markDirty(); render();
         break;
       }
-      case 'polling': c.polling = Number(el.dataset.value); markDirty(); render(); break;
-      case 'lod': c.lod = Number(el.dataset.value); markDirty(); render(); break;
-      case 'power': c.powerMode = Number(el.dataset.value); markDirty(); render(); break;
-      case 'turbo-mode': c.wireless.mode = Number(el.dataset.value); markDirty(); render(); break;
+      case 'polling': c.polling = Number(el.dataset.value); markDirty(); refreshSettingsUi(); break;
+      case 'lod': c.lod = Number(el.dataset.value); markDirty(); refreshSettingsUi(); break;
+      case 'power': c.powerMode = Number(el.dataset.value); markDirty(); refreshSettingsUi(); break;
+      case 'turbo-mode': c.wireless.mode = Number(el.dataset.value); markDirty(); refreshSettingsUi(); break;
 
-      case 'light-mode': c.lightMode = el.dataset.mode; markDirty(); render(); break;
-      case 'color': c.color = el.dataset.color; markDirty(); render(); break;
+      case 'light-mode': c.lightMode = el.dataset.mode; markDirty(); refreshSettingsUi(); break;
+      case 'color': c.color = el.dataset.color; markDirty(); refreshSettingsUi(); break;
       case 'paint': {
         c.painted = c.painted || {};
         c.painted[el.dataset.index] = c.color;
-        markDirty(); render();
+        markDirty(); refreshSettingsUi();
         break;
       }
-      case 'onboard': c.onboard = Number(el.dataset.index); markDirty(); render(); break;
+      case 'onboard': c.onboard = Number(el.dataset.index); markDirty(); refreshSettingsUi(); break;
 
       case 'adv-tab': state.advTab = el.dataset.tab; render(); break;
       case 'stage-advanced': toast('Advanced key rule staged', 'ok'); break;
@@ -1693,12 +1795,12 @@ python -m http.server 8080</pre>
       if (bind === 'macro.trigger') m.trigger = input.value;
       if (bind === 'macro.action.value') m.actions[Number(input.dataset.index)].value = input.value;
       if (bind === 'macro.action.delay') m.actions[Number(input.dataset.index)].delay = Number(input.value);
-      state.dirty = true;
+      markDirty();
       return;
     }
     if (bind.startsWith('adv.')) {
       setPath(state.cfg, bind, kind === 'int' ? Number(input.value) : kind === 'float' ? Number(input.value) : input.value);
-      state.dirty = true;
+      markDirty();
       return;
     }
     if (!state.cfg) return;
@@ -1730,7 +1832,7 @@ python -m http.server 8080</pre>
     markDirty();
     updateLive(bind, value);
     updateOut(input);
-    if (bind.startsWith('zones.')) render();
+    if (bind.startsWith('zones.')) { refreshSettingsUi(); return; }
   });
 
   document.addEventListener('change', (e) => {
@@ -1824,7 +1926,7 @@ python -m http.server 8080</pre>
     if (n.battery != null) state.info.battery = n.battery;
     if (n.cpi != null && state.cfg) state.cfg.cpiX = n.cpi & 0xffff;
     if (n.polling != null && state.cfg) state.cfg.polling = n.polling;
-    render();
+    refreshSettingsUi();
   });
   transport.addEventListener('peer', () => {
     addLog('info', 'receiver paired — querying the mouse on channel 0');
