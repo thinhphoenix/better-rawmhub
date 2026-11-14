@@ -609,7 +609,7 @@
     return `
     ${pageHead('Button mapping', 'Buttons',
       'Pick a button on the device, then choose what it should send. Changes apply as soon as you pick them.',
-      `<span class="pill ${state.dirty ? 'accent' : ''}">${state.dirty ? 'Unsaved changes' : 'In sync'}</span>`)}
+      `<span class="pill ${state.dirty ? 'accent' : ''}" data-dirty-pill>${state.dirty ? 'Unsaved changes' : 'In sync'}</span>`)}
 
     <div class="split">
       <div class="stack">
@@ -719,7 +719,7 @@
     return `
     ${pageHead('Key mapping', 'Buttons',
       'Select a key to remap. The board below is a 65% ANSI reference layout for this build.',
-      `<span class="pill ${state.dirty ? 'accent' : ''}">${state.dirty ? 'Unsaved changes' : 'In sync'}</span>`)}
+      `<span class="pill ${state.dirty ? 'accent' : ''}" data-dirty-pill>${state.dirty ? 'Unsaved changes' : 'In sync'}</span>`)}
     <div class="split">
       <div class="stack">
         <section class="card">
@@ -766,7 +766,7 @@
     return `
     ${pageHead('Sensor & speed', 'Performance',
       'Everything the sensor reports, tuned in one place. Changes are written to the device automatically.',
-      `<span class="pill ${state.dirty ? 'accent' : ''}">${state.dirty ? 'Unsaved' : 'In sync'}</span>`)}
+      `<span class="pill ${state.dirty ? 'accent' : ''}" data-dirty-pill>${state.dirty ? 'Unsaved' : 'In sync'}</span>`)}
 
     <div class="grid g-2">
       <section class="card" style="grid-column:1/-1">
@@ -1311,9 +1311,10 @@ python -m http.server 8080</pre>
       lightNav.classList.toggle('is-disabled', noLight);
     }
     $('#crumb-section').textContent = PAGE_TITLES[page] || 'Device';
+    const tr = window.RAWM_I18N ? window.RAWM_I18N.t : (s) => s;
     document.title = state.connected && state.profile
-      ? `${PAGE_TITLES[page]} · ${state.profile.title} — RAWM HUB Web`
-      : 'RAWM HUB Web — RAWM mouse & keyboard configurator';
+      ? `${tr(PAGE_TITLES[page])} · ${state.profile.title} — RAWM HUB Web`
+      : `${tr('RAWM mouse & keyboard configurator')} — RAWM HUB Web`;
 
     const fw = $('#fw-channel');
     if (fw) fw.value = String((state.cfg && state.cfg.fwChannel) || 0);
@@ -1333,6 +1334,7 @@ python -m http.server 8080</pre>
 
     if (state.logOpen) renderLog();
     updateRangeFills();
+    if (window.RAWM_I18N) window.RAWM_I18N.apply(document.body);
     if (window.__antMount) window.__antMount();
   }
 
@@ -1551,6 +1553,7 @@ python -m http.server 8080</pre>
       </div>
     </div>`;
     renderLog();
+    if (window.RAWM_I18N) window.RAWM_I18N.apply(root);
     if (window.__antMount) window.__antMount(root);
   }
 
@@ -1567,6 +1570,7 @@ python -m http.server 8080</pre>
     el.className = 'toast' + (kind === 'err' ? ' err' : '');
     el.innerHTML = `${icon(kind === 'err' ? 'alert' : kind === 'info' ? 'info' : 'check')}<span>${esc(message)}</span>`;
     root.appendChild(el);
+    if (window.RAWM_I18N) window.RAWM_I18N.apply(el);
     el.dataset.id = String(++toastId);
     setTimeout(() => {
       el.classList.add('out');
@@ -1577,18 +1581,20 @@ python -m http.server 8080</pre>
   /* ── Interactions ──────────────────────────────────────────────────── */
   function markDirty() {
     state.dirty = true;
-    const apply = $('#apply-btn');
-    if (apply) apply.hidden = !state.connected;
-    const pill = $('.page-head .pill');
-    if (pill) { pill.textContent = 'Unsaved changes'; pill.classList.add('accent'); }
+    const pill = $('.page-head .pill[data-dirty-pill]');
+    if (pill) {
+      pill.textContent = 'Unsaved changes';
+      pill.classList.add('accent');
+      if (window.RAWM_I18N) window.RAWM_I18N.apply(pill);
+    }
     scheduleLiveApply();
   }
 
   function updateDirtyPill() {
-    $$('.page-head .pill').forEach((pill) => {
-      if (!/Unsaved|In sync/.test(pill.textContent || '')) return;
+    $$('.page-head .pill[data-dirty-pill]').forEach((pill) => {
       pill.textContent = state.dirty ? 'Unsaved changes' : 'In sync';
       pill.classList.toggle('accent', !!state.dirty);
+      if (window.RAWM_I18N) window.RAWM_I18N.apply(pill);
     });
   }
 
@@ -1750,6 +1756,7 @@ python -m http.server 8080</pre>
       el.classList.toggle('is-active', !!col);
       el.style.setProperty('--c', col || '#171b21');
     });
+    if (window.RAWM_I18N) window.RAWM_I18N.apply($('#view'));
   }
 
   document.addEventListener('click', (e) => {
@@ -2012,6 +2019,15 @@ python -m http.server 8080</pre>
   });
 
   document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'lang-select') {
+      const next = e.target.value;
+      // Defer so React can finish the Select event before the tree is rebuilt.
+      setTimeout(() => {
+        if (window.RAWM_I18N) window.RAWM_I18N.setLang(next);
+        render();
+      }, 0);
+      return;
+    }
     if (e.target && e.target.id === 'fw-channel' && state.cfg) {
       state.cfg.fwChannel = Number(e.target.value);
       if (state.connected) {
@@ -2142,6 +2158,9 @@ python -m http.server 8080</pre>
     const params = new URLSearchParams(location.search);
     const hash = (location.hash || '').replace('#/', '');
     if (PAGE_TITLES[hash]) state.page = hash;
+
+    const langSel = $('#lang-select');
+    if (langSel && window.RAWM_I18N) langSel.value = window.RAWM_I18N.lang;
 
     render();
     addLog('info', 'RAWM HUB 2.0 · WebHID ' + (RAWM.Transport.supported ? 'available' : 'unavailable'));

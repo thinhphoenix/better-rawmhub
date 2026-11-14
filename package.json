@@ -1,6 +1,6 @@
 {
   "name": "better-rawmhub",
-  "version": "2.0.27",
+  "version": "2.0.28",
   "private": true,
   "description": "Browser-native RAWM HUB rebuild with WebHID transport",
   "scripts": {
@@ -12,6 +12,7 @@
     "cf:login": "wrangler login",
     "bump": "node tools/release.mjs --bump-only",
     "release": "node tools/release.mjs",
+    "ship": "node tools/release.mjs --no-deploy",
     "preview": "npm run build && wrangler pages dev public",
     "deploy": "npm run build && wrangler pages deploy public --project-name better-rawmhub --branch main"
   },

@@ -45,6 +45,7 @@ falls back to the default browser when Chrome is not installed.
 | Firmware | Revision, channel report, vendor updater hand-off and factory reset |
 | Downloads | Official desktop / Android / iOS builds and local-run instructions |
 | Console | Live WebHID packet log (TX/RX), copyable for debugging |
+| Language | English, Vietnamese, Chinese, Japanese, Thai, Korean and Spanish; flag picker in the header, choice saved locally |
 
 Scope is intentionally limited to this list — no extra pages or controls beyond
 the original hub.
@@ -105,6 +106,9 @@ assets/ant.js            React + antd bundle (inlined by the build)
 assets/products/         per-model renders (inlined by the build)
 assets/rawm-hub.png      official logo, bolt recoloured to theme blue
 assets/favicon.ico       favicon (inlined by the build)
+src/i18n.js             translation engine (text/attribute walker, language switch)
+src/locales/*.json      English, Vietnamese, Chinese, Japanese, Thai, Korean, Spanish
+assets/flags/           flag renders for the language picker (inlined by the build)
 tools/build.mjs          inlines CSS, JS, JSON, images, icons and favicon
 tools/start.mjs          local server + Chrome launcher
 tools/release.mjs        bump patch, build, deploy, commit, push
@@ -143,7 +147,8 @@ the rail footer and `<meta name="app-version">`.
 
 ```bash
 npm run bump      # 2.0.19 -> 2.0.20, no build or deploy
-npm run release   # bump patch + build + deploy + commit + push
+npm run ship      # bump + build + commit + push (Cloudflare Pages deploys)
+npm run release   # bump + build + wrangler deploy + commit + push
 ```
 
 ## Deploy (Cloudflare Pages)
@@ -216,6 +221,10 @@ word *RAWM* is owned by the vendor and cannot be guaranteed.
 - Controls are real Ant Design 5 components (Button, Switch, Select, Slider,
   Segmented) mounted over the custom layout; React and antd are bundled into
   `index.html`.
+- Phosphor **duotone** icons are emitted as a `<symbol>` sprite.
+- UI text is translated into English, Vietnamese, Chinese, Japanese, Thai,
+  Korean and Spanish. The language picker shows inlined flag renders and the
+  choice is stored in `localStorage`.
 - Official RAWM HUB logo in the rail, bolt recoloured to the theme blue; product
   renders come from the vendor's `/hub/product/{productId}/{model}/` endpoint
   and are inlined at build time.

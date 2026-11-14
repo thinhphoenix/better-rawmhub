@@ -3,6 +3,7 @@
    sliders are replaced with antd components while keeping the original events. */
 (() => {
   const { React, ReactDOMClient, antd } = window;
+  const FLAGS = __FLAGS__;
   if (!React || !ReactDOMClient || !antd) return;
   const { ConfigProvider, Button, Switch, Select, Slider, Segmented, theme } = antd;
   const h = React.createElement;
@@ -55,6 +56,8 @@
     const host = document.createElement('span');
     host.className = 'ant-host' + (block ? ' ant-host-block' : '');
     if (el.classList.contains('topbar-extra')) host.classList.add('topbar-extra');
+    if (el.classList.contains('lang-select')) host.classList.add('lang-host');
+    if (el.classList.contains('fw-select')) host.classList.add('fw-host');
     el.insertAdjacentElement('afterend', host);
     el.dataset.ant = '1';
     el.style.display = 'none';
@@ -130,14 +133,24 @@
 
     root.querySelectorAll('select.input, select.fw-select').forEach((el) => {
       if (el.dataset.ant || el.hidden || el.closest('.ant-host')) return;
-      const options = Array.from(el.options).map((o) => ({ label: o.textContent, value: o.value }));
+      const isLang = el.id === 'lang-select';
+      const options = Array.from(el.options).map((o) => ({
+        value: o.value,
+        label: isLang && FLAGS[o.value]
+          ? h('span', { className: 'lang-option' },
+            h('img', { src: FLAGS[o.value], alt: '', width: 16, height: 12 }),
+            h('span', null, o.textContent))
+          : o.textContent,
+      }));
       mount(el, h(Select, {
         value: el.value,
         options,
         disabled: el.disabled,
         size: el.classList.contains('fw-select') ? 'small' : 'middle',
         popupMatchSelectWidth: false,
-        style: el.classList.contains('fw-select') ? { minWidth: 130 } : { width: '100%' },
+        style: el.classList.contains('lang-select')
+          ? { minWidth: 122 }
+          : el.classList.contains('fw-select') ? { minWidth: 130 } : { width: '100%' },
         onChange: (value) => {
           el.value = value;
           el.dispatchEvent(new Event('input', { bubbles: true }));

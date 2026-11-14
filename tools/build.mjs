@@ -14,6 +14,12 @@ const hid = read('src/hid.js');
 const app = read('src/app.js');
 const antLib = read('assets/ant.js');
 const antControls = read('src/ant-controls.js');
+const i18n = read('src/i18n.js');
+const localeDir = resolve(root, 'src/locales');
+const locales = {};
+for (const file of readdirSync(localeDir).filter((f) => f.endsWith('.json'))) {
+  locales[file.replace(/\.json$/, '')] = JSON.parse(readFileSync(resolve(localeDir, file), 'utf8'));
+}
 const catalogue = JSON.parse(read('src/catalogue.json'));
 const pkg = JSON.parse(read('package.json'));
 
@@ -54,7 +60,7 @@ const iconMap = {
 };
 let iconSprite = '';
 for (const [id, name] of Object.entries(iconMap)) {
-  const svg = read(`node_modules/@phosphor-icons/core/assets/regular/${name}.svg`);
+  const svg = read(`node_modules/@phosphor-icons/core/assets/duotone/${name}-duotone.svg`);
   const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>[\s\S]*$/, '');
   iconSprite += `<symbol id="i-${id}" viewBox="0 0 256 256">${inner}</symbol>`;
 }
@@ -101,6 +107,10 @@ for (const d of catalogue) {
 
 const logo = dataUri('assets/rawm-hub.png');
 const favicon = dataUri('assets/favicon.ico');
+const flags = {};
+for (const lang of ['en', 'vi', 'zh', 'ja', 'th', 'ko', 'es']) {
+  try { flags[lang] = dataUri(`assets/flags/${lang}.png`); } catch { /* optional */ }
+}
 const template = templateSrc
   .split('assets/rawm-hub.png').join(logo)
   .split('assets/favicon.ico').join(favicon)
@@ -115,8 +125,9 @@ const out = template
   .replace('__ICON_SPRITE__', () => iconSprite)
   .replace('__ANT_LIB__', () => antLib)
   .replace('__HID__', () => hid.trim())
+  .replace('__I18N__', () => i18n.trim().replace('__LOCALES__', () => JSON.stringify(locales)))
   .replace('__APP__', () => app.trim())
-  .replace('__ANT_CONTROLS__', () => antControls.trim());
+  .replace('__ANT_CONTROLS__', () => antControls.trim().replace('__FLAGS__', () => JSON.stringify(flags)));
 
 writeFileSync(resolve(root, 'index.html'), out);
 

@@ -617,6 +617,8 @@ select.input option { background: #141414; color: #e9ebee; }
 .swatch-sm { width: 20px; height: 20px; }
 .variant-row { margin-top: 14px; }
 .variant-chip { text-transform: capitalize; }
+.lang-option { display: inline-flex; align-items: center; gap: 8px; }
+.lang-option img { width: 16px; height: 12px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .stage-color {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
@@ -802,6 +804,10 @@ select.input option { background: #141414; color: #e9ebee; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .profiles { grid-template-columns: repeat(3, 1fr); }
   .pair-row { grid-template-columns: 1fr 1fr; }
+  .topbar .crumb { display: none; }
+  .lang-host .ant-select { min-width: 62px !important; }
+  .lang-host .lang-option { gap: 0; }
+  .lang-host .lang-option span:last-child { display: none; }
   .action-row { grid-template-columns: 56px 1fr 70px 26px; }
   .dpi-stages { grid-template-columns: repeat(2, 1fr); }
   .perkey { grid-template-columns: repeat(10, 1fr); }
