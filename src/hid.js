@@ -181,7 +181,13 @@ const RAWM = (() => {
           return;
         }
       }
+      this._onGone = null;
       hidDevice.addEventListener('inputreport', this._onReport);
+      this._onGone = () => {
+        this.log('err', 'device disconnected / rebooting');
+        this.emit('gone', null);
+      };
+      hidDevice.addEventListener('disconnect', this._onGone);
       this.emit('open', { device: hidDevice, profile });
       this.log('rx', `opened ${hidDevice.productName || 'RAWM device'} — ${this.isReceiver ? 'receiver (direct, then channel 0)' : 'direct'}${this.hs ? ' (HS keyboard)' : ''}`);
 
@@ -222,8 +228,10 @@ const RAWM = (() => {
       const d = this.device;
       if (d) {
         try { d.removeEventListener('inputreport', this._onReport); } catch { /* noop */ }
+        try { if (this._onGone) d.removeEventListener('disconnect', this._onGone); } catch { /* noop */ }
         if (d.opened) d.close().catch(() => {});
       }
+      this._onGone = null;
       this.device = null;
       this.profile = null;
       this.channel = null;
@@ -678,6 +686,21 @@ const RAWM = (() => {
     save() {
       this.sendAction(ACTION.SAVE_CONFIG_TO_FDS, 0);
       this.log('tx', 'action · save config to onboard memory');
+    }
+
+    reboot() {
+      this.sendAction(ACTION.REBOOT, 0);
+      this.log('tx', 'action · reboot device');
+    }
+
+    async reconnect() {
+      if (!this.profile || !navigator.hid) return false;
+      const profile = this.profile;
+      const devices = await navigator.hid.getDevices();
+      const device = devices.find((d) => d.vendorId === VENDOR_ID && Number(d.productId) === Number(profile.product_id));
+      if (!device) return false;
+      await this.connect(device, profile);
+      return true;
     }
 
     restore() {

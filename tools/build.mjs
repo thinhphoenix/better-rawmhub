@@ -12,6 +12,44 @@ const antControls = read('src/ant-controls.js');
 const catalogue = JSON.parse(read('src/catalogue.json'));
 const pkg = JSON.parse(read('package.json'));
 
+// Phosphor icons, emitted as a <symbol> sprite so the existing icon() helper
+// keeps working without any layout changes.
+const iconMap = {
+  mouse: 'mouse',
+  grid: 'grid-four',
+  sliders: 'sliders-horizontal',
+  bulb: 'lightbulb',
+  keys: 'keyboard',
+  bolt: 'lightning',
+  chip: 'cpu',
+  download: 'download-simple',
+  battery: 'battery-medium',
+  link: 'link-simple',
+  plus: 'plus',
+  minus: 'minus',
+  check: 'check',
+  x: 'x',
+  chevron: 'caret-right',
+  arrow: 'arrow-right',
+  refresh: 'arrows-clockwise',
+  trash: 'trash',
+  copy: 'copy',
+  wave: 'wave-sine',
+  monitor: 'monitor',
+  info: 'info',
+  alert: 'warning',
+  terminal: 'terminal-window',
+  globe: 'globe',
+  play: 'play',
+  record: 'record',
+};
+let iconSprite = '';
+for (const [id, name] of Object.entries(iconMap)) {
+  const svg = read(`node_modules/@phosphor-icons/core/assets/regular/${name}.svg`);
+  const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>[\s\S]*$/, '');
+  iconSprite += `<symbol id="i-${id}" viewBox="0 0 256 256">${inner}</symbol>`;
+}
+
 const mime = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
 const dataUri = (path) => {
   const buf = readFileSync(resolve(root, path));
@@ -33,6 +71,7 @@ const json = JSON.stringify(catalogue).replace(/<\//g, '<\\/');
 const out = template
   .replace('__CSS__', () => css.trim())
   .replace('__CATALOGUE__', () => json)
+  .replace('__ICON_SPRITE__', () => iconSprite)
   .replace('__ANT_LIB__', () => antLib)
   .replace('__HID__', () => hid.trim())
   .replace('__APP__', () => app.trim())

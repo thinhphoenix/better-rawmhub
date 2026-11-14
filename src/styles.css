@@ -59,7 +59,7 @@ svg { display: block; }
 .ant-host .ant-slider { margin: 6px 0 0; }
 .ant-host .ant-select { width: 100%; }
 .ant-btn-quiet { color: rgba(255, 255, 255, 0.65); }
-.ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ic { width: 18px; height: 18px; fill: currentColor; stroke: none; flex: none; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 /* Scrollbars */

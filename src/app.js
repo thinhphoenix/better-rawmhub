@@ -52,7 +52,6 @@
     log: [],
     logOpen: false,
     busy: false,
-    fwDirty: false,
   };
 
   const transport = new RAWM.Transport((dir, msg) => addLog(dir, msg));
@@ -1221,7 +1220,6 @@ python -m http.server 8080</pre>
       state.connected = true;
       state.handshake = 'waiting';
       state.dirty = false;
-      state.fwDirty = false;
       state.cfg = makeConfig(profile, null);
       state.selectedKey = profile.keyboard ? 'A' : (profile.keys && profile.keys[0] ? profile.keys[0].name : null);
       await transport.connect(hid, profile);
@@ -1251,15 +1249,40 @@ python -m http.server 8080</pre>
     }
   }
 
+  let reconnectTimer = null;
+
+  function scheduleReconnect() {
+    clearTimeout(reconnectTimer);
+    let tries = 0;
+    const tick = async () => {
+      if (!state.connected) return;
+      tries++;
+      try {
+        const ok = await transport.reconnect();
+        if (ok) {
+          state.handshake = 'waiting';
+          render();
+          toast('Device reconnected', 'ok');
+          return;
+        }
+      } catch (err) {
+        addLog('err', 'reconnect: ' + err.message);
+      }
+      if (tries < 8) reconnectTimer = setTimeout(tick, 1200);
+      else toast('Device did not come back — click Connect', 'err');
+    };
+    reconnectTimer = setTimeout(tick, 1600);
+  }
+
   function disconnectDevice() {
-    transport.disconnect();
     state.connected = false;
     state.handshake = 'idle';
+    transport.disconnect();
+    clearTimeout(reconnectTimer);
     state.profile = null;
     state.info = null;
     state.cfg = null;
     state.dirty = false;
-    state.fwDirty = false;
     state.capturing = false;
     toast('Device disconnected', 'info');
     go('device');
@@ -1269,10 +1292,6 @@ python -m http.server 8080</pre>
     if (!state.cfg) return;
     try {
       state.cfg.lightByte = lightByte();
-      if (state.fwDirty) {
-        transport.writeGamingOnly(state.cfg.fwChannel === 1);
-        state.fwDirty = false;
-      }
       transport.writeMouseConfig(state.cfg);
       if (state.profile.light) transport.writeLight(state.cfg.lightByte);
       transport.writeBrightness(Math.round((state.cfg.brightness / 100) * 255));
@@ -1280,7 +1299,7 @@ python -m http.server 8080</pre>
       transport.save();
       state.dirty = false;
       render();
-      toast('Writing to device — it may restart after a firmware-channel change.', 'ok');
+      toast('Writing to device…', 'ok');
     } catch (err) {
       toast(err.message || 'Write failed', 'err');
     }
@@ -1656,9 +1675,15 @@ python -m http.server 8080</pre>
   document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'fw-channel' && state.cfg) {
       state.cfg.fwChannel = Number(e.target.value);
-      state.fwDirty = true;
-      markDirty();
-      toast('FW channel staged — press Write to apply (device may restart).', 'info');
+      if (state.connected) {
+        transport.writeGamingOnly(state.cfg.fwChannel === 1);
+        transport.save();
+        transport.reboot();
+        state.handshake = 'waiting';
+        render();
+        toast('FW channel changed — device is rebooting…', 'info');
+        scheduleReconnect();
+      }
       return;
     }
     const input = e.target;
@@ -1748,6 +1773,13 @@ python -m http.server 8080</pre>
     addLog('err', 'this HID interface has no output/feature report — Chrome cannot write to it');
     render();
     toast('This HID interface is read-only over WebHID', 'err');
+  });
+  transport.addEventListener('gone', () => {
+    if (!state.connected) return;
+    state.handshake = 'waiting';
+    render();
+    toast('Device disconnected — waiting for it to come back', 'info');
+    scheduleReconnect();
   });
   transport.addEventListener('timeout', () => {
     if (!state.connected) return;
