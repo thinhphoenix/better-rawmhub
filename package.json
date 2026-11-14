@@ -1,6 +1,6 @@
 {
   "name": "better-rawmhub",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "private": true,
   "description": "Browser-native RAWM HUB rebuild with WebHID transport",
   "scripts": {
@@ -23,5 +23,8 @@
   },
   "devDependencies": {
     "wrangler": "^4.161.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
