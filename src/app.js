@@ -1223,6 +1223,7 @@ python -m http.server 8080</pre>
       <div class="card-body">
         <p class="help">RAWM HUB Web is a free, open-source alternative to the RAWM HUB desktop software for RAWM gaming mice and keyboards. It reads and writes the device configuration directly from Chrome or Edge using WebHID — no installer, no account and no background service. Every settings change is written to the mouse automatically and saved to onboard memory.</p>
         <p class="help" style="margin-top:10px">Supported controls include DPI stages with per-stage colours, polling rate, lift-off distance, angle tuning, ripple control, motion sync, glass mode, lighting modes and brightness, button remapping, advanced keys and macros for the RAWM devices in the vendor catalogue. The source code is on <a href="${REPO_URL}" target="_blank" rel="noopener" style="color:var(--accent)">GitHub</a> and issues are welcome.</p>
+        <p class="help" lang="vi" style="margin-top:10px">RAWM HUB Web còn được biết đến như phần mềm chuột RAWM miễn phí chạy trực tiếp trên trình duyệt: chỉnh DPI, polling rate, đèn LED, gán phím và macro mà không cần cài đặt.</p>
         <p class="help" style="margin-top:10px;color:var(--faint)">This is an unofficial community rebuild. RAWM, RAWM HUB and the device renders belong to RAWM / Shenzhen Renmo Electronic Technology.</p>
       </div>
     </section>`;
