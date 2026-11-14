@@ -42,6 +42,10 @@ const iconMap = {
   globe: 'globe',
   play: 'play',
   record: 'record',
+  star: 'star',
+  github: 'github-logo',
+  bug: 'bug',
+  external: 'arrow-square-out',
 };
 let iconSprite = '';
 for (const [id, name] of Object.entries(iconMap)) {

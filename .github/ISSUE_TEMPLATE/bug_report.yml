@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in RAWM HUB Web is broken or behaves incorrectly
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The app version is shown at the bottom-left of the app,
+        and the WebHID console log is available from the terminal icon in the header.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the problem.
+      placeholder: Changing polling rate writes the wrong value…
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Connect the device over 2.4 GHz
+        2. Open Performance
+        3. Click 500 Hz
+        4. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      placeholder: The mouse should switch to 500 Hz and keep it after a reboot.
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device model and connection
+      description: The model name shown in the app, plus USB cable or 2.4 GHz receiver.
+      placeholder: LEVIATHAN V4 · 2.4 GHz receiver
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown at the bottom-left of the app, for example v2.0.21.
+      placeholder: v2.0.21
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: Chrome 142 on Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: WebHID console log
+      description: Open the terminal icon in the header, reproduce the problem, then copy the log.
+      render: text
+      placeholder: Paste the TX/RX log here.
+    validations:
+      required: false

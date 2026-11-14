@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a device feature or improvement for RAWM HUB Web
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The app intentionally mirrors the device features of the original RAWM HUB.
+        Please describe which device and firmware expose the feature.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to add or change?
+      placeholder: A per-stage DPI colour picker on the Device tab…
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it useful?
+      placeholder: It would let me match the stage colours without opening the native app.
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device model and firmware
+      placeholder: LEVIATHAN V4 · firmware 1.0.1
+    validations:
+      required: false

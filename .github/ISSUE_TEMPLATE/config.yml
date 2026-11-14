@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Open RAWM HUB Web
+    url: https://better-rawmhub.pages.dev
+    about: Try the latest build before reporting a problem.
+  - name: Source code
+    url: https://github.com/thinhphoenix/better-rawmhub
+    about: Read the README, transport notes and release history.

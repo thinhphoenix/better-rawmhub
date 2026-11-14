@@ -84,6 +84,7 @@
       href,
       target: href ? el.getAttribute('target') || undefined : undefined,
       rel: href ? el.getAttribute('rel') || undefined : undefined,
+      title: el.getAttribute('title') || undefined,
       onClick: href ? undefined : () => el.click(),
       className: [
         cls.includes('btn-ghost') ? 'ant-btn-quiet' : '',

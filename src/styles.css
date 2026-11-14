@@ -692,6 +692,9 @@ select.input option { background: #141414; color: #e9ebee; }
 .kv .k { color: var(--faint); }
 .kv .v { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
 .kv .v.good { color: var(--accent); }
+.kv a { color: var(--accent); }
+.kv a.v { color: var(--accent) !important; }
+.kv a:hover { text-decoration: underline; }
 .notice {
   display: flex; gap: 10px; padding: 13px 15px;
   border: 1px solid var(--line); border-radius: 5px;

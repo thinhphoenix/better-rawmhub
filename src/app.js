@@ -131,6 +131,36 @@
     return bits == null ? STAGE_COLOR(i) : colorForBits(bits);
   };
   const MOUSE_FN = { M1: 'Left click', M2: 'Right click', M3: 'Middle click', M4: 'Back', M5: 'Forward', M6: 'DPI cycle', M7: 'Onboard profile' };
+  const REPO_URL = 'https://github.com/thinhphoenix/better-rawmhub';
+
+  function issueLink(kind) {
+    const version = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+    const device = state.profile ? `${state.profile.title} (PID ${String(state.profile.product_id).toUpperCase()})` : 'No device connected';
+    const browser = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    if (kind === 'feature') {
+      const body = [
+        '**What would you like to add or change?**', '', '', '',
+        '**Why is it useful?**', '', '', '',
+        '---',
+        `App v${version}`,
+        `Device: ${device}`,
+      ].join('\n');
+      return `${REPO_URL}/issues/new?title=${encodeURIComponent('[Feature] ')}&body=${encodeURIComponent(body)}`;
+    }
+    const body = [
+      '**What happened?**', '', '', '',
+      '**Steps to reproduce**', '1. ', '2. ', '3. ', '',
+      '**Expected behaviour**', '', '', '',
+      '**Device and app**',
+      `- App: v${version}`,
+      `- Device: ${device}`,
+      `- Browser: ${browser}`,
+      '',
+      '**WebHID console log**',
+      '<!-- Open the terminal button in the header, reproduce the problem, then paste the log here. -->', '',
+    ].join('\n');
+    return `${REPO_URL}/issues/new?title=${encodeURIComponent('[Bug] ')}&body=${encodeURIComponent(body)}`;
+  }
 
   function colorBits(hex) {
     const exact = LED_COLORS.find((c) => c.hex.toLowerCase() === String(hex).toLowerCase());
@@ -1157,6 +1187,33 @@ python -m http.server 8080</pre>
           <div class="kv"><span class="k">API</span><span class="v">${RAWM.Transport.supported ? 'WebHID available' : 'WebHID unavailable'}</span></div>
           <div class="kv"><span class="k">Vendor ID</span><span class="v">0x1915</span></div>
           <div class="notice" style="margin-top:12px">${icon('info')}<span>Product renders and the device catalogue belong to RAWM / Miraclatek and are loaded from their CDN.</span></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid g-2" style="margin-top:14px">
+      <section class="card">
+        <div class="card-head"><div class="ch-title">${icon('github')}<div><h2>GitHub repository</h2><p>Source code, releases and issues</p></div></div><span class="pill">OPEN SOURCE</span></div>
+        <div class="card-body">
+          <p class="help">If this tool helped you, star the repo — it makes the project easier for other RAWM owners to find.</p>
+          <div class="kv" style="margin-top:10px"><span class="k">Repository</span><a class="v" href="${REPO_URL}" target="_blank" rel="noopener">thinhphoenix/better-rawmhub</a></div>
+          <div class="kv"><span class="k">Issues</span><a class="v" href="${REPO_URL}/issues" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}/issues</a></div>
+          <div class="row" style="margin-top:14px;flex-wrap:wrap">
+            <a class="btn btn-primary btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('star')}<span>Star on GitHub</span></a>
+            <a class="btn btn-ghost btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('github')}<span>View source</span></a>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div class="ch-title">${icon('bug')}<div><h2>Report the app</h2><p>Bugs and feature requests go to GitHub Issues</p></div></div></div>
+        <div class="card-body">
+          <p class="help">The issue opens pre-filled with your app version, browser and connected device. For device bugs, paste the WebHID console log too.</p>
+          <div class="row" style="margin-top:14px;flex-wrap:wrap">
+            <a class="btn btn-primary btn-sm" href="${issueLink('bug')}" target="_blank" rel="noopener">${icon('bug')}<span>Report a bug</span></a>
+            <a class="btn btn-ghost btn-sm" href="${issueLink('feature')}" target="_blank" rel="noopener">${icon('plus')}<span>Request a feature</span></a>
+          </div>
+          <div class="kv" style="margin-top:12px"><span class="k">All issues</span><a class="v" href="${REPO_URL}/issues" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}/issues</a></div>
         </div>
       </section>
     </div>`;
