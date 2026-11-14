@@ -59,6 +59,21 @@ svg { display: block; }
 .ant-host .ant-slider { margin: 6px 0 0; }
 .ant-host .ant-select { width: 100%; }
 .ant-btn-quiet { color: rgba(255, 255, 255, 0.65); }
+/* Buy Me a Coffee — official yellow (#FFDD00) */
+.ant-btn.ant-btn-bmc {
+  background: #ffdd00;
+  border-color: #ffdd00;
+  color: #0d0c22;
+  font-weight: 600;
+}
+.ant-btn.ant-btn-bmc:hover,
+.ant-btn.ant-btn-bmc:focus-visible {
+  background: #ffd400 !important;
+  border-color: #ffd400 !important;
+  color: #0d0c22 !important;
+  box-shadow: 0 0 0 3px rgba(255, 221, 0, 0.22) !important;
+}
+.ant-btn.ant-btn-bmc .ant-ic svg { fill: currentColor; }
 .ic { width: 18px; height: 18px; fill: currentColor; stroke: none; flex: none; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 

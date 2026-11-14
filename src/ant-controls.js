@@ -85,7 +85,10 @@
       target: href ? el.getAttribute('target') || undefined : undefined,
       rel: href ? el.getAttribute('rel') || undefined : undefined,
       onClick: href ? undefined : () => el.click(),
-      className: cls.includes('btn-ghost') ? 'ant-btn-quiet' : undefined,
+      className: [
+        cls.includes('btn-ghost') ? 'ant-btn-quiet' : '',
+        cls.includes('btn-bmc') ? 'ant-btn-bmc' : '',
+      ].filter(Boolean).join(' ') || undefined,
     };
     return h(Button, props, text || null);
   };
