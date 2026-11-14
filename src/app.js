@@ -401,11 +401,13 @@
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Lighting</h2><p>${esc(LIGHT_PRESETS.find((l) => l.mode === c.lightMode)?.name || 'Breathe')} · ${c.brightness}%</p></div></div></div>
         <div class="card-body">
+          ${p.light ? `
           <div class="light-stage" style="min-height:118px;border-radius:9px;--glow:${esc(c.color)}">
             <div style="position:absolute;inset:10px;border-radius:7px;background:radial-gradient(50% 80% at 50% 50%, ${esc(c.color)}33, transparent 70%)"></div>
             <div style="position:relative;z-index:1;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:${esc(c.color)}">${esc((LIGHT_PRESETS.find((l) => l.mode === c.lightMode)?.name || 'breathe').toUpperCase())}</div>
           </div>
           <button class="link-btn" style="margin-top:12px" data-page="lighting">Open lighting studio ${icon('arrow')}</button>
+          ` : `<div class="empty" style="padding:22px 10px">${icon('bulb')}<p>No RGB lighting on this device.</p></div>`}
         </div>
       </section>
     </div>
@@ -448,6 +450,7 @@
           <div class="kv"><span class="k">Sensor</span><span class="v">${esc(p.sensor || '—')}</span></div>
           <div class="kv"><span class="k">SoC</span><span class="v">${esc(p.soc || '—')}</span></div>
           <div class="kv"><span class="k">Connection</span><span class="v ${state.connected ? 'good' : ''}">${esc(connection)}</span></div>
+          <div class="kv"><span class="k">Lighting</span><span class="v">${p.light ? 'RGB' : 'None'}</span></div>
           <div class="kv"><span class="k">Profiles</span><span class="v">${onboardMax} slots</span></div>
         </div>
       </section>
@@ -770,6 +773,15 @@
   function lightingView() {
     const p = state.profile;
     const c = state.cfg;
+    if (!p.light) {
+      return `
+      ${pageHead('Lighting studio', 'Lighting',
+        'This device profile does not expose RGB lighting.')}
+      <section class="card"><div class="empty">
+        ${icon('bulb')}
+        <p>No RGB lighting on this device. The firmware reports no light channel for ${esc(p.title)}.</p>
+      </div></section>`;
+    }
     const preset = LIGHT_PRESETS.find((l) => l.mode === c.lightMode) || LIGHT_PRESETS[0];
     const zones = p.keyboard ? ['Per key', 'Underglow', 'Side rails'] : ['Scroll wheel', 'Logo', 'Base'];
     const zoneOn = (i) => !!(c.zones && c.zones[i]);
@@ -1129,6 +1141,12 @@ python -m http.server 8080</pre>
     $$('#nav-main .nav-item, #nav-system .nav-item').forEach((b) => {
       b.classList.toggle('is-active', b.dataset.page === page);
     });
+    const lightNav = $('.nav-item[data-page="lighting"]');
+    if (lightNav) {
+      const noLight = !!(state.connected && state.profile && !state.profile.light);
+      lightNav.disabled = noLight;
+      lightNav.classList.toggle('is-disabled', noLight);
+    }
     $('#crumb-section').textContent = PAGE_TITLES[page] || 'Device';
     document.title = state.connected && state.profile ? `${PAGE_TITLES[page]} · ${state.profile.title} — RAWM HUB` : 'RAWM HUB — Device configurator';
 
