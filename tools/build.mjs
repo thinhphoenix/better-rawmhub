@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'no
 import { resolve, extname } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const SITE_URL = 'https://better-rawmhub.pages.dev';
+const SITE_URL = 'https://better-rawmhub.chila.io.vn';
 const googleVerification = (process.env.GOOGLE_SITE_VERIFICATION || '').trim();
 const verificationTag = googleVerification
   ? `<meta name="google-site-verification" content="${googleVerification}" />`

@@ -11,7 +11,7 @@ The deliverable is a **single self-contained `index.html`** with React, Ant
 Design, fonts, icons and product renders inlined. No runtime CDN, no build step
 needed to open the built file.
 
-- Live app: <https://better-rawmhub.pages.dev>
+- Live app: <https://better-rawmhub.chila.io.vn> (also on <https://better-rawmhub.pages.dev>)
 - Source and issues: <https://github.com/thinhphoenix/better-rawmhub>
 
 ![Device overview](shots/device.png)
@@ -144,7 +144,8 @@ npm run cf:login   # once, opens the browser
 npm run deploy     # build + upload to the Pages project
 ```
 
-- Live URL: <https://better-rawmhub.pages.dev>
+- Live URL: <https://better-rawmhub.chila.io.vn>
+- Fallback URL: <https://better-rawmhub.pages.dev>
 - Pages project: `better-rawmhub`, production branch `main`.
 - Build command for CI/Cloudflare: `npm run build`, output directory: `public`.
   Do **not** use `npm run release` there — it commits and deploys recursively.
@@ -161,8 +162,9 @@ The build writes `robots.txt`, `sitemap.xml` and `og-image.png` next to
 `index.html`, and the page itself carries a canonical URL, description,
 Open Graph/Twitter tags and SoftwareApplication JSON-LD.
 
-1. Open [Google Search Console](https://search.google.com/search-console) → **Add
-   property** → **URL prefix** → `https://better-rawmhub.pages.dev`.
+1. Open [Google Search Console](https://search.google.com/search-console) and add
+   the custom domain as a **URL prefix** property:
+   `https://better-rawmhub.chila.io.vn/`.
 2. Verify with the **HTML tag** method. Copy the token from the `content="…"`
    attribute and build with it:
 
@@ -175,7 +177,11 @@ Open Graph/Twitter tags and SoftwareApplication JSON-LD.
 
    Set the same variable in the Cloudflare Pages project so every automatic
    build keeps the tag.
-3. Submit `https://better-rawmhub.pages.dev/sitemap.xml` under **Sitemaps**.
+
+   DNS alternative: add a **TXT** record for the exact host Google asks for
+   (`better-rawmhub` in `chila.io.vn`, not just the apex). A Domain property for
+   `chila.io.vn` also covers every subdomain.
+3. Submit `https://better-rawmhub.chila.io.vn/sitemap.xml` under **Sitemaps**.
 4. Use **URL Inspection** → **Request indexing** for the home page.
 5. Add the live URL to the GitHub repository description and README, and link it
    from forum posts or reviews. Backlinks matter more than tags for short
