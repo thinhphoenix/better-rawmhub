@@ -1171,12 +1171,12 @@ python -m http.server 8080</pre>
     if (fw) fw.value = String((state.cfg && state.cfg.fwChannel) || 0);
 
     const pill = $('#conn-pill');
-    const battery = state.info && Number.isFinite(Number(state.info.battery)) ? Number(state.info.battery) : null;
-    const stateLabel = state.handshake === 'ready' ? 'CONNECTED' : state.handshake === 'timeout' ? 'NO REPLY' : 'CONNECTING';
-    if (state.connected) {
-      pill.innerHTML = `<span class="dot on"></span><span>${stateLabel}${battery != null ? ' · ' + battery + '%' : ''}</span>`;
-    } else {
-      pill.innerHTML = `<span class="dot"></span><span>NO DEVICE</span>`;
+    if (pill) {
+      const battery = state.info && Number.isFinite(Number(state.info.battery)) ? Number(state.info.battery) : null;
+      const stateLabel = state.handshake === 'ready' ? 'CONNECTED' : state.handshake === 'timeout' ? 'NO REPLY' : 'CONNECTING';
+      pill.innerHTML = state.connected
+        ? `<span class="dot on"></span><span>${stateLabel}${battery != null ? ' · ' + battery + '%' : ''}</span>`
+        : `<span class="dot"></span><span>NO DEVICE</span>`;
     }
 
     renderRailDevice();
