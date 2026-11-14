@@ -614,6 +614,12 @@ select.input option { background: #141414; color: #e9ebee; }
 }
 .swatch:hover { transform: scale(1.08); }
 .swatch.is-active { box-shadow: 0 0 0 2px #0a0c0f, 0 0 0 4px var(--accent); }
+.swatch-sm { width: 20px; height: 20px; }
+.stage-color {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+}
+.stage-color .swatches { gap: 6px; }
 .color-custom { display: flex; align-items: center; gap: 8px; }
 .color-custom input[type="color"] { width: 32px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 4px; background: #0a0c0f; }
 .perkey { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; }

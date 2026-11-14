@@ -83,7 +83,7 @@
     rplus: 'None',
     fwChannel: null,
     keyDelay: [8, 8, 8, 8, 8, 8, 8],
-    levelColors: [4, 2, 3, 1],
+    levelColors: [1, 2, 6, 4, 0, 0, 0, 0],
     onboardStatus: [0x81, 0x82, 0x83, 0x84],
     keys: {},
     zones: [true, false, false],
@@ -119,6 +119,17 @@
     { hex: '#1a1f24', bits: 0 },
   ];
   const COLORS = LED_COLORS.map((c) => c.hex);
+  const colorForBits = (bits) => (LED_COLORS.find((c) => c.bits === (Number(bits) & 0x07)) || LED_COLORS[7]).hex;
+  const stageBits = (i) => {
+    const arr = state.cfg && state.cfg.levelColors;
+    return Array.isArray(arr) && arr[i] != null ? Number(arr[i]) & 0x07 : null;
+  };
+  // DPI stages store their own LED colour on the device; show that instead of
+  // an arbitrary palette so the UI matches the mouse.
+  const stageColor = (i) => {
+    const bits = stageBits(i);
+    return bits == null ? STAGE_COLOR(i) : colorForBits(bits);
+  };
   const MOUSE_FN = { M1: 'Left click', M2: 'Right click', M3: 'Middle click', M4: 'Back', M5: 'Forward', M6: 'DPI cycle', M7: 'Onboard profile' };
 
   function colorBits(hex) {
@@ -178,6 +189,25 @@
       cfg.xy = cfg.cpiY !== cfg.cpiX;
       const stage = cfg.dpiLevels.findIndex((v) => Number(v) === cfg.cpiX);
       if (stage >= 0) cfg.activeLevel = stage;
+    }
+    // DPI stages and their LED colours: cpi_l / cpi_l_c in the query result.
+    if (Array.isArray(info.cpi_l) && info.cpi_l.length) {
+      const levels = info.cpi_l
+        .map((n) => {
+          const v = Number(n) || 0;
+          return (v & 0xffff) || ((v >>> 16) & 0xffff);
+        })
+        .filter((n) => n > 0);
+      if (levels.length) {
+        cfg.dpiLevels = levels;
+        const stage = levels.findIndex((v) => v === cfg.cpiX);
+        cfg.activeLevel = stage >= 0 ? stage : Math.min(cfg.activeLevel, levels.length - 1);
+      }
+    }
+    if (Array.isArray(info.cpi_l_c)) {
+      const colors = info.cpi_l_c.map((n) => Number(n) & 0x07).slice(0, 8);
+      while (colors.length < 8) colors.push(0);
+      cfg.levelColors = colors;
     }
     if (Number.isFinite(Number(info.pr)) && Number(info.pr) > 0) cfg.polling = Number(info.pr);
     if (info.lod != null) cfg.lod = Number(info.lod);
@@ -395,7 +425,7 @@
           <div class="dpi-stages">
             ${levels.slice(0, 8).map((v, i) => `
               <button class="dpi-stage ${i === c.activeLevel ? 'is-active' : ''}" data-action="dpi-stage" data-index="${i}">
-                <div class="ds-i"><span class="ds-dot" style="--c:${STAGE_COLOR(i)}"></span>${String(i + 1).padStart(2, '0')}</div>
+                <div class="ds-i"><span class="ds-dot" style="--c:${stageColor(i)}"></span>${String(i + 1).padStart(2, '0')}</div>
                 <div class="ds-v">${fmt(v)}</div>
               </button>`).join('')}
           </div>
@@ -442,14 +472,14 @@
               <button class="profile-tile ${i === (c.onboard | 0) ? 'is-active' : ''}" data-action="onboard" data-index="${i}">
                 <div class="pt-i">SLOT ${String(i + 1).padStart(2, '0')}</div>
                 <div class="pt-name">Profile ${i + 1}</div>
-                <div class="pt-dot" style="--pc:${['#4be38a', '#7aa7ff', '#ff6b6b', '#b388ff', '#f2b25c'][i % 5]}"></div>
+                <div class="pt-dot" style="--pc:${['#3b82f6', '#7aa7ff', '#ff6b6b', '#b388ff', '#f2b25c'][i % 5]}"></div>
               </button>`).join('')}
           </div>
           <div class="setting-row" style="margin-top:16px">
             <div class="sr-main"><div class="sr-title">Switchable</div><p class="sr-desc">Use the profile button on the device to cycle slots.</p></div>
             <div class="sr-side">
               <div class="color-dots">
-                ${['#4be38a', '#7aa7ff', '#ff6b6b', '#b388ff', '#f2b25c'].map((col) => `<span class="cdot" style="--c:${col}"></span>`).join('')}
+                ${['#3b82f6', '#7aa7ff', '#ff6b6b', '#b388ff', '#f2b25c'].map((col) => `<span class="cdot" style="--c:${col}"></span>`).join('')}
               </div>
               <label class="switch"><input type="checkbox" data-bind="allowSwitch" data-kind="bool" ${c.allowSwitch ? 'checked' : ''} aria-label="Switchable"/><i></i></label>
             </div>
@@ -698,9 +728,15 @@
             <div class="dpi-stages dpi-grid">
               ${c.dpiLevels.map((v, i) => `
                 <button class="dpi-stage ${i === c.activeLevel ? 'is-active' : ''}" data-action="dpi-stage" data-index="${i}">
-                  <div class="ds-i"><span class="ds-dot" style="--c:${STAGE_COLOR(i)}"></span>STAGE ${String(i + 1).padStart(2, '0')}</div>
+                  <div class="ds-i"><span class="ds-dot" style="--c:${stageColor(i)}"></span>STAGE ${String(i + 1).padStart(2, '0')}</div>
                   <div class="ds-v">${fmt(v)}</div>
                 </button>`).join('')}
+            </div>
+            <div class="stage-color">
+              <span class="field-label">Stage <span data-live="active-stage">${String(c.activeLevel + 1).padStart(2, '0')}</span> colour</span>
+              <div class="swatches">
+                ${LED_COLORS.map((col) => `<button class="swatch swatch-sm ${stageBits(c.activeLevel) === col.bits ? 'is-active' : ''}" style="--sw:${col.hex}" data-action="stage-color" data-bits="${col.bits}" title="${col.bits === 0 ? 'Off' : col.hex.toUpperCase()}" aria-label="Stage colour ${col.hex}"></button>`).join('')}
+              </div>
             </div>
           </div>
         </div>
@@ -1540,6 +1576,13 @@ python -m http.server 8080</pre>
       el.classList.toggle('is-active', i === c.activeLevel);
       const v = el.querySelector('.ds-v');
       if (v && c.dpiLevels[i] != null) v.textContent = fmt(c.dpiLevels[i]);
+      const dot = el.querySelector('.ds-dot');
+      if (dot) dot.style.setProperty('--c', stageColor(i));
+    });
+    const stageLabel = $('[data-live="active-stage"]');
+    if (stageLabel) stageLabel.textContent = String(c.activeLevel + 1).padStart(2, '0');
+    $$('[data-action="stage-color"]').forEach((el) => {
+      el.classList.toggle('is-active', Number(el.dataset.bits) === stageBits(c.activeLevel));
     });
 
     const syncRange = (bind, value) => {
@@ -1658,13 +1701,19 @@ python -m http.server 8080</pre>
         if (c.dpiLevels.length >= 8) break;
         const last = c.dpiLevels[c.dpiLevels.length - 1] || 800;
         c.dpiLevels.push(Math.min((p.cpi_range && p.cpi_range[1]) || 30000, last + 800));
+        c.levelColors = Array.isArray(c.levelColors) ? c.levelColors.slice(0, 8) : DEFAULTS.levelColors.slice();
+        while (c.levelColors.length < 8) c.levelColors.push(0);
+        const nextBits = [1, 2, 6, 4, 5, 3, 7, 7][c.dpiLevels.length - 1] || 1;
+        if (!c.levelColors[c.dpiLevels.length - 1]) c.levelColors[c.dpiLevels.length - 1] = nextBits;
         c.activeLevel = c.dpiLevels.length - 1;
         markDirty(); render();
         break;
       }
       case 'dpi-remove': {
         if (c.dpiLevels.length <= 1) break;
+        const removed = c.dpiLevels.length - 1;
         c.dpiLevels.pop();
+        if (Array.isArray(c.levelColors)) c.levelColors[removed] = 0;
         c.activeLevel = Math.min(c.activeLevel, c.dpiLevels.length - 1);
         c.cpiX = c.dpiLevels[c.activeLevel];
         markDirty(); render();
@@ -1683,9 +1732,18 @@ python -m http.server 8080</pre>
       }
       case 'dpi-reset': {
         c.dpiLevels = ((p && p.cpi_levels) || DEFAULTS.dpiLevels).filter((n) => n > 0);
+        c.levelColors = DEFAULTS.levelColors.slice();
         c.activeLevel = Math.min(2, c.dpiLevels.length - 1);
         c.cpiX = c.cpiY = c.dpiLevels[c.activeLevel];
         markDirty(); render();
+        break;
+      }
+      case 'stage-color': {
+        const bits = Number(el.dataset.bits) & 0x07;
+        c.levelColors = Array.isArray(c.levelColors) ? c.levelColors.slice(0, 8) : DEFAULTS.levelColors.slice();
+        while (c.levelColors.length < 8) c.levelColors.push(0);
+        c.levelColors[c.activeLevel] = bits;
+        markDirty(); refreshSettingsUi();
         break;
       }
       case 'polling': c.polling = Number(el.dataset.value); markDirty(); refreshSettingsUi(); break;
