@@ -101,14 +101,51 @@
   };
 
   const LIGHT_PRESETS = [
-    { name: 'Loop', mode: 'loop', cls: 'pv-breathe', byte: 0x88 },
+    { name: 'Loop', mode: 'loop', cls: 'pv-breathe', byte: 0x48 },
     { name: 'Customize', mode: 'custom', cls: 'pv-static', byte: 0x08 },
     { name: 'DPI levels', mode: 'dpi', cls: 'pv-dpi', byte: 0x18 },
   ];
   const STAGE_COLORS = ['#4cc9f0', '#4be38a', '#ffd166', '#ff6b6b', '#b388ff', '#f2b25c', '#7aa7ff', '#ff9ff3'];
   const STAGE_COLOR = (i) => STAGE_COLORS[i % STAGE_COLORS.length];
-  const COLORS = ['#4be38a', '#f2b25c', '#ff6b6b', '#7aa7ff', '#b388ff', '#f5f7fa', '#4cc9f0', '#ff9ff3'];
+  // The firmware only stores three colour bits (R/G/B).
+  const LED_COLORS = [
+    { hex: '#f5f7fa', bits: 7 },
+    { hex: '#ff6b6b', bits: 4 },
+    { hex: '#4be38a', bits: 2 },
+    { hex: '#4cc9f0', bits: 1 },
+    { hex: '#ffd166', bits: 6 },
+    { hex: '#37e0d8', bits: 3 },
+    { hex: '#b388ff', bits: 5 },
+    { hex: '#1a1f24', bits: 0 },
+  ];
+  const COLORS = LED_COLORS.map((c) => c.hex);
   const MOUSE_FN = { M1: 'Left click', M2: 'Right click', M3: 'Middle click', M4: 'Back', M5: 'Forward', M6: 'DPI cycle', M7: 'Onboard profile' };
+
+  function colorBits(hex) {
+    const exact = LED_COLORS.find((c) => c.hex.toLowerCase() === String(hex).toLowerCase());
+    if (exact) return exact.bits;
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex));
+    if (!m) return 2;
+    const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16));
+    let best = 2;
+    let bestDist = Infinity;
+    for (const c of LED_COLORS) {
+      if (!c.bits) continue;
+      const cm = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c.hex);
+      const [cr, cg, cb] = cm.slice(1).map((x) => parseInt(x, 16));
+      const d = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
+      if (d < bestDist) { bestDist = d; best = c.bits; }
+    }
+    return best;
+  }
+
+  function decodeLight(byte) {
+    const b = Number(byte) & 0xff;
+    const mode = (b & 0x10) ? 'dpi' : (b & 0x40) ? 'loop' : 'custom';
+    const bits = b & 0x07;
+    const color = (LED_COLORS.find((c) => c.bits === bits) || LED_COLORS[7]).hex;
+    return { mode, color, autoOff: !!(b & 0x20), raw: b };
+  }
 
   /* Config ------------------------------------------------------------ */
   function makeConfig(p, info) {
@@ -145,8 +182,16 @@
     if (Number.isFinite(Number(info.pr)) && Number(info.pr) > 0) cfg.polling = Number(info.pr);
     if (info.lod != null) cfg.lod = Number(info.lod);
     if (info.st != null) cfg.sleep = Math.max(1, Math.round(Number(info.st) / 60) || 10);
-    if (info.light != null) cfg.lightByteRaw = Number(info.light);
-    if (info.brightness != null) cfg.brightness = Math.round((Number(info.brightness) / 255) * 100);
+    const lightVal = info.light != null ? info.light : info.l;
+    if (lightVal != null) {
+      const l = decodeLight(Number(lightVal));
+      cfg.lightMode = l.mode;
+      cfg.color = l.color;
+      cfg.autoOff = l.autoOff;
+      cfg.lightByteRaw = l.raw;
+    }
+    const bri = info.brightness != null ? info.brightness : info.bri;
+    if (bri != null) cfg.brightness = Math.round((Number(bri) / 255) * 100);
     if (info.ms != null) cfg.motionSync = !!Number(info.ms);
     if (info.at != null) cfg.angleTuning = Number(info.at);
     if (info.as != null) cfg.angleSnapping = !!Number(info.as);
@@ -158,7 +203,10 @@
 
   function lightByte() {
     const preset = LIGHT_PRESETS.find((p) => p.mode === state.cfg.lightMode) || LIGHT_PRESETS[0];
-    return preset.byte & 0xff;
+    let b = preset.byte & ~0x07;
+    b |= colorBits(state.cfg.color);
+    if (state.cfg.autoOff) b |= 0x20;
+    return b & 0xff;
   }
 
   /* Markup helpers ----------------------------------------------------- */
@@ -826,10 +874,7 @@
             <span class="field-label">Colour</span>
             <div class="swatches">
               ${COLORS.map((col) => `<button class="swatch ${col.toLowerCase() === c.color.toLowerCase() ? 'is-active' : ''}" style="--sw:${col}" data-action="color" data-color="${col}" aria-label="${col}"></button>`).join('')}
-              <label class="color-custom" style="margin-left:4px">
-                <input type="color" value="${esc(c.color)}" data-bind="color" data-kind="str" aria-label="Custom colour"/>
-                <span class="mono" style="font-size:10px;color:var(--faint)">${esc(c.color.toUpperCase())}</span>
-              </label>
+              <span class="mono" style="font-size:10px;color:var(--faint);margin-left:4px">${esc(c.color.toUpperCase())}</span>
             </div>
           </div>
           <div style="height:14px"></div>
