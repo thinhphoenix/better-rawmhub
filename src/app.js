@@ -501,7 +501,7 @@
     const assignment = (active && c.keys[active]) || { type: 'key', label: key ? keyFunction(p, key) : 'Left click', mods: [], turbo: false, freq: 20, rand: 0, down: 0, up: 0 };
     return `
     ${pageHead('Button mapping', 'Buttons',
-      'Pick a button on the device, then choose what it should send. Changes are staged until you write them.',
+      'Pick a button on the device, then choose what it should send. Changes apply as soon as you pick them.',
       `<span class="pill ${state.dirty ? 'accent' : ''}">${state.dirty ? 'Unsaved changes' : 'In sync'}</span>`)}
 
     <div class="split">
@@ -658,7 +658,7 @@
     const lods = p.lods || ['Low', 'Medium', 'High'];
     return `
     ${pageHead('Sensor & speed', 'Performance',
-      'Everything the sensor reports, tuned in one place. Values are written with the button in the header.',
+      'Everything the sensor reports, tuned in one place. Changes are written to the device automatically.',
       `<span class="pill ${state.dirty ? 'accent' : ''}">${state.dirty ? 'Unsaved' : 'In sync'}</span>`)}
 
     <div class="grid g-2">
@@ -1163,10 +1163,6 @@ python -m http.server 8080</pre>
     $('#crumb-section').textContent = PAGE_TITLES[page] || 'Device';
     document.title = state.connected && state.profile ? `${PAGE_TITLES[page]} · ${state.profile.title} — RAWM HUB` : 'RAWM HUB — Device configurator';
 
-    const apply = $('#apply-btn');
-    apply.hidden = !(state.dirty && state.connected);
-    apply.querySelector('span').textContent = 'Write to device';
-
     const fw = $('#fw-channel');
     if (fw) fw.value = String((state.cfg && state.cfg.fwChannel) || 0);
 
@@ -1178,6 +1174,8 @@ python -m http.server 8080</pre>
         ? `<span class="dot on"></span><span>${stateLabel}${battery != null ? ' · ' + battery + '%' : ''}</span>`
         : `<span class="dot"></span><span>NO DEVICE</span>`;
     }
+
+    if (state.dirty && state.connected && state.cfg) scheduleLiveApply();
 
     renderRailDevice();
 
@@ -1319,20 +1317,44 @@ python -m http.server 8080</pre>
     go('device');
   }
 
-  async function applyAll() {
-    if (!state.cfg) return;
+  /* ── Live apply ────────────────────────────────────────────────────── */
+  // Every settings change is written to the device automatically: a short
+  // debounce coalesces slider drags, then the onboard save follows once the
+  // user stops interacting. There is no manual "Write to device" step.
+  let liveTimer = 0;
+  let saveTimer = 0;
+
+  function writeLiveConfig() {
+    state.cfg.lightByte = lightByte();
+    transport.writeMouseConfig(state.cfg);
+    if (state.profile && state.profile.light) transport.writeLight(state.cfg.lightByte);
+    transport.writeBrightness(Math.round((state.cfg.brightness / 100) * 255));
+    transport.writeSleep(Math.max(1, state.cfg.sleep) * 60);
+  }
+
+  function scheduleLiveApply(delay = 260) {
+    if (!state.connected || !state.cfg) return;
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => {
+      if (!state.connected || !state.cfg) return;
+      try {
+        writeLiveConfig();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(flushSave, 1200);
+      } catch (err) {
+        addLog('err', 'auto-apply: ' + (err.message || err));
+      }
+    }, delay);
+  }
+
+  function flushSave() {
+    if (!state.connected || !state.cfg) return;
     try {
-      state.cfg.lightByte = lightByte();
-      transport.writeMouseConfig(state.cfg);
-      if (state.profile.light) transport.writeLight(state.cfg.lightByte);
-      transport.writeBrightness(Math.round((state.cfg.brightness / 100) * 255));
-      transport.writeSleep(Math.max(1, state.cfg.sleep) * 60);
       transport.save();
       state.dirty = false;
-      render();
-      toast('Writing to device…', 'ok');
+      updateDirtyPill();
     } catch (err) {
-      toast(err.message || 'Write failed', 'err');
+      addLog('err', 'auto-save: ' + (err.message || err));
     }
   }
 
@@ -1404,9 +1426,18 @@ python -m http.server 8080</pre>
   function markDirty() {
     state.dirty = true;
     const apply = $('#apply-btn');
-    apply.hidden = !state.connected;
+    if (apply) apply.hidden = !state.connected;
     const pill = $('.page-head .pill');
     if (pill) { pill.textContent = 'Unsaved changes'; pill.classList.add('accent'); }
+    scheduleLiveApply();
+  }
+
+  function updateDirtyPill() {
+    $$('.page-head .pill').forEach((pill) => {
+      if (!/Unsaved|In sync/.test(pill.textContent || '')) return;
+      pill.textContent = state.dirty ? 'Unsaved changes' : 'In sync';
+      pill.classList.toggle('accent', !!state.dirty);
+    });
   }
 
   function getPath(obj, path) {
@@ -1475,7 +1506,6 @@ python -m http.server 8080</pre>
     switch (action) {
       case 'connect': connectDevice(); break;
       case 'disconnect': disconnectDevice(); break;
-      case 'apply': applyAll(); break;
       case 'handshake':
         if (!state.connected) break;
         state.handshake = 'waiting';

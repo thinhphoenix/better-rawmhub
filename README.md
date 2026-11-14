@@ -61,7 +61,9 @@ and the public device catalogue. It implements:
 - Query-result JSON parsing (revision, battery, CPI, polling, LOD, angle, ripple, profiles)
 - Live notifications (battery, CPI, polling, onboard index, RSSI)
 - Writes: mouse parameters (`CONFIG_TYPE_MOUSE_PARAM`), lighting, brightness, sleep time,
-  save-to-flash and factory restore
+  save-to-flash and factory restore. Every settings change is written automatically
+  (roughly 250 ms debounce) and saved to onboard memory once you stop interacting, so
+  there is no manual "Write to device" step.
 - HS keyboard firmware handshake (`IQ_GET_SOFT_DRV_VER`) with raw logging
 
 **Not written to hardware yet:** button remaps, macros and HS keyboard configuration. Their
