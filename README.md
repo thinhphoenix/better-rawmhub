@@ -123,6 +123,17 @@ npm run build                    # bundles antd, then inlines everything
 node tools/test-transport.mjs    # 7 framing / CRC / routing checks
 ```
 
+Colour variants are discovered from `assets/products/<product_id>-<model>.png`.
+To fetch every model for every mouse from the vendor catalogue:
+
+```bash
+node tools/fetch-products.mjs --all
+npm run build
+```
+
+The Device tab shows a colour picker whenever a product has more than one
+render; the choice is remembered in `localStorage`.
+
 `index.html` and `public/index.html` are generated — edit `src/`, not the build.
 
 ## Versioning
@@ -210,6 +221,9 @@ word *RAWM* is owned by the vendor and cannot be guaranteed.
   and are inlined at build time.
 - Devices without a downloaded render (receivers or a few models) use the inline
   SVG placeholder.
+- Colour variants come from `assets/products/<product_id>-<model>.png`. When a
+  product has more than one render, the Device tab shows a colour picker and
+  remembers the choice in `localStorage`.
 - Responsive down to 390px: the rail collapses to an icon strip.
 
 ## Notes

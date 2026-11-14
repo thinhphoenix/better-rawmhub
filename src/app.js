@@ -26,15 +26,56 @@
     const product = d.product_image || (kind === 'mouse' && model
       ? `https://hub.miracletek.net/hub/product/${d.product_id}/${model}/connected.png`
       : '');
+    const images = {};
+    if (d.product_images && typeof d.product_images === 'object') {
+      for (const [colour, src] of Object.entries(d.product_images)) if (src) images[colour] = src;
+    }
+    if (product) {
+      const fallback = model || 'default';
+      if (!images[fallback]) images[fallback] = product;
+    }
+    const defaultColor = Object.keys(images).find((c) => images[c] === product) || model || Object.keys(images)[0] || null;
     devices.push({
       ...d,
       key: d.product_id + ':' + rawTitle,
       title,
       image: product,
+      images,
+      defaultColor,
       kind,
     });
   }
   const byProduct = (id) => devices.find((d) => String(d.product_id).toLowerCase() === String(id).toLowerCase());
+
+  // Colour variant chosen per product id; remembered locally only.
+  const COLOR_KEY = 'rawmhub.deviceColour';
+  let colourPrefs = {};
+  try { colourPrefs = JSON.parse(localStorage.getItem(COLOR_KEY) || '{}') || {}; } catch { colourPrefs = {}; }
+
+  function colorOptions(p) {
+    return p && p.images ? Object.keys(p.images).filter((c) => c !== 'default') : [];
+  }
+  function activeColor(p) {
+    const pref = p && colourPrefs[p.product_id];
+    if (pref && p.images && p.images[pref]) return pref;
+    return (p && p.defaultColor) || '';
+  }
+  function productImage(p) {
+    if (!p) return '';
+    const pref = colourPrefs[p.product_id];
+    if (pref && p.images && p.images[pref]) return p.images[pref];
+    return p.image;
+  }
+  function setProductColor(p, colour) {
+    if (!p || !p.images || !p.images[colour]) return;
+    colourPrefs[p.product_id] = colour;
+    try { localStorage.setItem(COLOR_KEY, JSON.stringify(colourPrefs)); } catch { /* ignore */ }
+    const src = productImage(p);
+    $$('img.device-render').forEach((el) => { el.src = src; });
+    $$('[data-action="device-color"]').forEach((el) => {
+      el.classList.toggle('is-active', el.dataset.color === colour);
+    });
+  }
 
   /* State ------------------------------------------------------------- */
   const state = {
@@ -327,7 +368,7 @@
     };
     return `<div class="mouse-map">
       <div class="mouse-wrap">
-        ${img(p.image, 'mouse-photo', p.title, p.kind)}
+        ${img(productImage(p), 'mouse-photo device-render', p.title, p.kind)}
         ${keys.map((k) => {
           const pt = pos[k.name] || [50, 50];
           const side = ['M1', 'M4', 'M5'].includes(k.name) ? 'hs-left' : k.name === 'M2' ? 'hs-right' : k.name === 'M3' ? 'hs-top' : '';
@@ -358,7 +399,7 @@
       <section class="card connect-card">
         <div class="connect-stage">
           <div class="stage-tags"><span class="tag accent"><span class="dot on"></span>READY</span><span class="tag">WEBHID</span></div>
-          ${img(hero ? hero.image : '', '', hero ? hero.title : 'RAWM mouse', hero ? hero.kind : 'mouse')}
+          ${img(hero ? productImage(hero) : '', 'device-render', hero ? hero.title : 'RAWM mouse', hero ? hero.kind : 'mouse')}
         </div>
         <div class="connect-copy">
           <h2>Connect your device</h2>
@@ -409,7 +450,7 @@
           <span class="tag accent"><span class="dot on"></span>${stateLabel}</span>
           ${battery != null ? `<span class="tag">${icon('battery')} <span data-live="battery-tag">${battery}%${charging ? ' · charging' : ''}</span></span>` : ''}
         </div>
-        ${img(p.image, 'hero-img', p.title, p.kind)}
+        ${img(productImage(p), 'hero-img device-render', p.title, p.kind)}
         <span class="stage-model">${esc(p.title)} ${p.sensor ? '· ' + esc(p.sensor) : ''}</span>
       </div>
       <div class="hero-panel">
@@ -421,6 +462,13 @@
             ${p.polling_rates ? `<span class="tag">${fmt(Math.max(...p.polling_rates))} HZ MAX</span>` : ''}
             ${p.lods ? `<span class="tag">${p.lods.length} LOD</span>` : ''}
           </div>
+          ${colorOptions(p).length > 1 ? `
+          <div class="variant-row">
+            <span class="field-label">Colour</span>
+            <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+              ${colorOptions(p).map((colour) => `<button class="chip variant-chip ${colour === activeColor(p) ? 'is-active' : ''}" data-action="device-color" data-color="${esc(colour)}">${esc(colour.charAt(0).toUpperCase() + colour.slice(1))}</button>`).join('')}
+            </div>
+          </div>` : ''}
         </div>
         <div class="stat-grid">
           <div class="stat">
@@ -876,7 +924,7 @@
         <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Preview</h2><p><span data-live="light-mode-name">${esc(preset.name)}</span> · <span data-live="color-hex">${esc(c.color)}</span></p></div></div><span class="pill accent">LIVE</span></div>
         <div class="card-body">
           <div class="light-stage" style="--glow:${esc(c.color)}">
-            ${img(p.image, '', p.title, p.kind)}
+            ${img(productImage(p), 'device-render', p.title, p.kind)}
             <span class="ls-caption"><span data-live="light-mode-name">${esc(preset.name)}</span> · <span data-live="brightness">${c.brightness}</span>% · <span data-live="speed">${c.speed}</span>% speed</span>
           </div>
           <div class="zone-list" style="margin-top:14px;border-top:1px solid var(--line)">
@@ -1295,7 +1343,7 @@ python -m http.server 8080</pre>
     const p = state.profile;
     const battery = state.info && state.info.battery != null ? state.info.battery : null;
     el.innerHTML = `<button class="mini-device" data-page="device" style="width:100%;text-align:left" title="${esc(p.title)}">
-      ${img(p.image, '', p.title, p.kind)}
+      ${img(productImage(p), 'device-render', p.title, p.kind)}
       <span style="min-width:0">
         <span class="md-name" style="display:block">${esc(p.title)}</span>
         <span class="md-sub"><span class="dot on"></span>${state.handshake === 'ready' ? 'CONNECTED' : state.handshake === 'timeout' ? 'NO REPLY' : 'CONNECTING'}</span>
@@ -1720,6 +1768,7 @@ python -m http.server 8080</pre>
     switch (action) {
       case 'connect': connectDevice(); break;
       case 'disconnect': disconnectDevice(); break;
+      case 'device-color': setProductColor(p, el.dataset.color); break;
       case 'handshake':
         if (!state.connected) break;
         state.handshake = 'waiting';

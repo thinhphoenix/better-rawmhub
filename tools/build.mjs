@@ -65,11 +65,37 @@ const dataUri = (path) => {
   return `data:${mime[extname(path)] || 'application/octet-stream'};base64,${buf.toString('base64')}`;
 };
 
+// Discover colour variants from the files on disk instead of hardcoding them.
+// tools/fetch-products.mjs --all downloads every model into assets/products as
+// <product_id>-<model>.png.
+const productDir = resolve(root, 'assets/products');
+const productFiles = readdirSync(productDir).filter((f) => f.toLowerCase().endsWith('.png'));
+for (const d of catalogue) {
+  const pid = String(d.product_id || '').toLowerCase();
+  const variants = {};
+  for (const f of productFiles) {
+    const m = f.match(new RegExp(`^${pid}-(.+)\\.png$`, 'i'));
+    if (m) variants[m[1].toLowerCase()] = `assets/products/${f}`;
+  }
+  const entries = Object.entries(variants);
+  if (!entries.length) continue;
+  const current = String(d.product_image || '').match(/-([^.]+)\.png$/i);
+  const preferred = current && variants[current[1].toLowerCase()];
+  d.product_image = preferred || variants.black || entries[0][1];
+  if (entries.length > 1) d.product_images = variants;
+}
+
 // Inline downloaded product renders; devices without a render use the SVG
 // placeholder in the UI.
 for (const d of catalogue) {
   if (d.product_image) {
     try { d.product_image = dataUri(d.product_image); } catch { delete d.product_image; }
+  }
+  if (d.product_images && typeof d.product_images === 'object') {
+    for (const colour of Object.keys(d.product_images)) {
+      try { d.product_images[colour] = dataUri(d.product_images[colour]); } catch { delete d.product_images[colour]; }
+    }
+    if (!Object.keys(d.product_images).length) delete d.product_images;
   }
 }
 

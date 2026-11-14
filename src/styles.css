@@ -615,6 +615,8 @@ select.input option { background: #141414; color: #e9ebee; }
 .swatch:hover { transform: scale(1.08); }
 .swatch.is-active { box-shadow: 0 0 0 2px #0a0c0f, 0 0 0 4px var(--accent); }
 .swatch-sm { width: 20px; height: 20px; }
+.variant-row { margin-top: 14px; }
+.variant-chip { text-transform: capitalize; }
 .stage-color {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
