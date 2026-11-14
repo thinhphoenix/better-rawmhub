@@ -52,6 +52,7 @@
     log: [],
     logOpen: false,
     busy: false,
+    fwDirty: false,
   };
 
   const transport = new RAWM.Transport((dir, msg) => addLog(dir, msg));
@@ -1220,6 +1221,7 @@ python -m http.server 8080</pre>
       state.connected = true;
       state.handshake = 'waiting';
       state.dirty = false;
+      state.fwDirty = false;
       state.cfg = makeConfig(profile, null);
       state.selectedKey = profile.keyboard ? 'A' : (profile.keys && profile.keys[0] ? profile.keys[0].name : null);
       await transport.connect(hid, profile);
@@ -1257,6 +1259,7 @@ python -m http.server 8080</pre>
     state.info = null;
     state.cfg = null;
     state.dirty = false;
+    state.fwDirty = false;
     state.capturing = false;
     toast('Device disconnected', 'info');
     go('device');
@@ -1266,6 +1269,10 @@ python -m http.server 8080</pre>
     if (!state.cfg) return;
     try {
       state.cfg.lightByte = lightByte();
+      if (state.fwDirty) {
+        transport.writeGamingOnly(state.cfg.fwChannel === 1);
+        state.fwDirty = false;
+      }
       transport.writeMouseConfig(state.cfg);
       if (state.profile.light) transport.writeLight(state.cfg.lightByte);
       transport.writeBrightness(Math.round((state.cfg.brightness / 100) * 255));
@@ -1273,7 +1280,7 @@ python -m http.server 8080</pre>
       transport.save();
       state.dirty = false;
       render();
-      toast('Writing to device…', 'ok');
+      toast('Writing to device — it may restart after a firmware-channel change.', 'ok');
     } catch (err) {
       toast(err.message || 'Write failed', 'err');
     }
@@ -1649,9 +1656,9 @@ python -m http.server 8080</pre>
   document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'fw-channel' && state.cfg) {
       state.cfg.fwChannel = Number(e.target.value);
-      transport.writeGamingOnly(state.cfg.fwChannel === 1);
-      transport.save();
-      toast(state.cfg.fwChannel === 1 ? 'RAWM Gaming firmware channel' : 'Standard firmware channel', 'info');
+      state.fwDirty = true;
+      markDirty();
+      toast('FW channel staged — press Write to apply (device may restart).', 'info');
       return;
     }
     const input = e.target;
