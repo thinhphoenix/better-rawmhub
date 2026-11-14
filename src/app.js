@@ -22,18 +22,18 @@
     const rawTitle = d.display_name || d.name || 'RAWM device';
     const title = /[^\x00-\x7F]/.test(rawTitle) ? (d.name || d.alias || rawTitle) : rawTitle;
     const kind = d.receiver ? 'receiver' : d.keyboard ? 'keyboard' : 'mouse';
-    const model = Array.isArray(d.models) && d.models.length ? d.models[0] : null;
-    const product = d.product_image || (kind === 'mouse' && model
-      ? `https://hub.miracletek.net/hub/product/${d.product_id}/${model}/connected.png`
-      : '');
+    const models = Array.isArray(d.models) ? d.models.filter(Boolean) : [];
+    const model = models[0] || null;
+    const renderUrl = (colour) => `https://hub.miracletek.net/hub/product/${d.product_id}/${colour}/connected.png`;
+    const product = d.product_image || (kind === 'mouse' && model ? renderUrl(model) : '');
     const images = {};
+    // Colour variants load from the vendor hub; an inlined local render (when
+    // one ships in assets/products) wins over the remote URL.
+    if (kind === 'mouse') for (const colour of models) images[colour] = renderUrl(colour);
     if (d.product_images && typeof d.product_images === 'object') {
       for (const [colour, src] of Object.entries(d.product_images)) if (src) images[colour] = src;
     }
-    if (product) {
-      const fallback = model || 'default';
-      if (!images[fallback]) images[fallback] = product;
-    }
+    if (product) images[model || 'default'] = product;
     const defaultColor = Object.keys(images).find((c) => images[c] === product) || model || Object.keys(images)[0] || null;
     devices.push({
       ...d,
@@ -71,7 +71,11 @@
     colourPrefs[p.product_id] = colour;
     try { localStorage.setItem(COLOR_KEY, JSON.stringify(colourPrefs)); } catch { /* ignore */ }
     const src = productImage(p);
-    $$('img.device-render').forEach((el) => { el.src = src; });
+    $$('img.device-render').forEach((el) => {
+      el.classList.remove('is-loaded');
+      el.onerror = () => { el.onerror = null; el.src = PLACEHOLDER_IMG; };
+      el.src = src;
+    });
     $$('[data-action="device-color"]').forEach((el) => {
       el.classList.toggle('is-active', el.dataset.color === colour);
     });
@@ -312,10 +316,11 @@
   }
 
   /* Markup helpers ----------------------------------------------------- */
-  const PLACEHOLDER_IMG = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280" viewBox="0 0 24 24" fill="none" stroke="#3c444e" stroke-width="1"><rect x="6.5" y="2.5" width="11" height="19" rx="5.5"/><path d="M12 2.6v6.2"/></svg>');
-  const img = (src, cls = '', alt = '', kind = 'mouse') => src
-    ? `<img class="${cls}" src="${esc(src)}" alt="${esc(alt)}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'"/>`
-    : `<div class="${cls} device-placeholder">${icon(kind === 'keyboard' ? 'keys' : kind === 'receiver' ? 'chip' : 'mouse')}</div>`;
+  // Inlined by the build: the one local render, used as the loading placeholder.
+  const PLACEHOLDER_IMG = '__PLACEHOLDER_IMG__';
+  document.documentElement.style.setProperty('--device-ph', `url("${PLACEHOLDER_IMG}")`);
+  const img = (src, cls = '', alt = '') =>
+    `<img class="${cls}" src="${esc(src || PLACEHOLDER_IMG)}" alt="${esc(alt)}" loading="lazy" onload="this.classList.add('is-loaded')" onerror="this.onerror=null;this.src='${PLACEHOLDER_IMG}'"/>`;
 
   function pctStyle(value, min, max) {
     const pct = ((Number(value) - min) / (max - min)) * 100;
@@ -369,7 +374,7 @@
     };
     return `<div class="mouse-map">
       <div class="mouse-wrap">
-        ${img(productImage(p), 'mouse-photo device-render', p.title, p.kind)}
+        ${img(productImage(p), 'mouse-photo device-render', p.title)}
         ${keys.map((k) => {
           const pt = pos[k.name] || [50, 50];
           const side = ['M1', 'M4', 'M5'].includes(k.name) ? 'hs-left' : k.name === 'M2' ? 'hs-right' : k.name === 'M3' ? 'hs-top' : '';
@@ -400,7 +405,7 @@
       <section class="card connect-card">
         <div class="connect-stage">
           <div class="stage-tags"><span class="tag accent"><span class="dot on"></span>READY</span><span class="tag">WEBHID</span></div>
-          ${img(hero ? productImage(hero) : '', 'device-render', hero ? hero.title : 'RAWM mouse', hero ? hero.kind : 'mouse')}
+          ${img(hero ? productImage(hero) : '', 'device-render', hero ? hero.title : 'RAWM mouse')}
         </div>
         <div class="connect-copy">
           <h2>Connect your device</h2>
@@ -451,7 +456,7 @@
           <span class="tag accent"><span class="dot on"></span>${stateLabel}</span>
           ${battery != null ? `<span class="tag">${icon('battery')} <span data-live="battery-tag">${battery}%${charging ? ' · charging' : ''}</span></span>` : ''}
         </div>
-        ${img(productImage(p), 'hero-img device-render', p.title, p.kind)}
+        ${img(productImage(p), 'hero-img device-render', p.title)}
         <span class="stage-model">${esc(p.title)} ${p.sensor ? '· ' + esc(p.sensor) : ''}</span>
       </div>
       <div class="hero-panel">
@@ -925,7 +930,7 @@
         <div class="card-head"><div class="ch-title">${icon('bulb')}<div><h2>Preview</h2><p><span data-live="light-mode-name">${esc(preset.name)}</span> · <span data-live="color-hex">${esc(c.color)}</span></p></div></div><span class="pill accent">LIVE</span></div>
         <div class="card-body">
           <div class="light-stage" style="--glow:${esc(c.color)}">
-            ${img(productImage(p), 'device-render', p.title, p.kind)}
+            ${img(productImage(p), 'device-render', p.title)}
             <span class="ls-caption"><span data-live="light-mode-name">${esc(preset.name)}</span> · <span data-live="brightness">${c.brightness}</span>% · <span data-live="speed">${c.speed}</span>% speed</span>
           </div>
           <div class="zone-list" style="margin-top:14px;border-top:1px solid var(--line)">
@@ -1346,7 +1351,7 @@ python -m http.server 8080</pre>
     const p = state.profile;
     const battery = state.info && state.info.battery != null ? state.info.battery : null;
     el.innerHTML = `<button class="mini-device" data-page="device" style="width:100%;text-align:left" title="${esc(p.title)}">
-      ${img(productImage(p), 'device-render', p.title, p.kind)}
+      ${img(productImage(p), 'device-render', p.title)}
       <span style="min-width:0">
         <span class="md-name" style="display:block">${esc(p.title)}</span>
         <span class="md-sub"><span class="dot on"></span>${state.handshake === 'ready' ? 'CONNECTED' : state.handshake === 'timeout' ? 'NO REPLY' : 'CONNECTING'}</span>

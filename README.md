@@ -103,7 +103,7 @@ src/hid.js               WebHID transport, framing, CRC, config packets
 src/app.js               views, state, auto-apply, interactions, router
 src/catalogue.json       device catalogue (36 entries, vendor data)
 assets/ant.js            React + antd bundle (inlined by the build)
-assets/products/         per-model renders (inlined by the build)
+assets/products/         one local render, used as the loading placeholder
 assets/rawm-hub.png      official logo, bolt recoloured to theme blue
 assets/favicon.ico       favicon (inlined by the build)
 src/i18n.js             translation engine (text/attribute walker, language switch)
@@ -127,16 +127,16 @@ npm run build                    # bundles antd, then inlines everything
 node tools/test-transport.mjs    # 7 framing / CRC / routing checks
 ```
 
-Colour variants are discovered from `assets/products/<product_id>-<model>.png`.
-To fetch every model for every mouse from the vendor catalogue:
+Product renders load from the vendor hub at
+`https://hub.miracletek.net/hub/product/<product_id>/<model>/connected.png`.
+`assets/products/234a-black.png` (LEVIATHAN V4, black) ships inside the bundle
+and is shown while a render downloads, or when a device has no render at all.
+Files placed in `assets/products/` are still inlined by the build and win over
+the remote URL; the placeholder file itself is reserved and skipped.
 
-```bash
-node tools/fetch-products.mjs --all
-npm run build
-```
-
-The Device tab shows a colour picker whenever a product has more than one
-render; the choice is remembered in `localStorage`.
+Colour variants come from each device's `models` list. The Device tab shows a
+colour picker whenever there is more than one, and the choice is remembered in
+`localStorage`.
 
 `index.html` and `public/index.html` are generated — edit `src/`, not the build.
 
@@ -226,13 +226,11 @@ word *RAWM* is owned by the vendor and cannot be guaranteed.
   Korean and Spanish. The language picker shows inlined flag renders and the
   choice is stored in `localStorage`.
 - Official RAWM HUB logo in the rail, bolt recoloured to the theme blue; product
-  renders come from the vendor's `/hub/product/{productId}/{model}/` endpoint
-  and are inlined at build time.
-- Devices without a downloaded render (receivers or a few models) use the inline
-  SVG placeholder.
-- Colour variants come from `assets/products/<product_id>-<model>.png`. When a
-  product has more than one render, the Device tab shows a colour picker and
-  remembers the choice in `localStorage`.
+  renders load from the vendor's `/hub/product/{productId}/{model}/` endpoint.
+- `assets/products/234a-black.png` is inlined as the placeholder shown while a
+  render downloads or when a device has no render of its own.
+- Matched devices show a colour picker when they expose more than one model;
+  the choice is remembered in `localStorage`.
 - Responsive down to 390px: the rail collapses to an icon strip.
 
 ## Notes

@@ -71,11 +71,17 @@ const dataUri = (path) => {
   return `data:${mime[extname(path)] || 'application/octet-stream'};base64,${buf.toString('base64')}`;
 };
 
+// The only render kept on disk: shown instantly while the vendor hub's
+// per-device renders download, and when one fails to load. It is reserved, so
+// the variant scan below does not inline it a second time.
+const placeholderFile = '234a-black.png';
+const placeholderImg = dataUri(`assets/products/${placeholderFile}`);
+
 // Discover colour variants from the files on disk instead of hardcoding them.
 // tools/fetch-products.mjs --all downloads every model into assets/products as
 // <product_id>-<model>.png.
 const productDir = resolve(root, 'assets/products');
-const productFiles = readdirSync(productDir).filter((f) => f.toLowerCase().endsWith('.png'));
+const productFiles = readdirSync(productDir).filter((f) => f.toLowerCase().endsWith('.png') && f !== placeholderFile);
 for (const d of catalogue) {
   const pid = String(d.product_id || '').toLowerCase();
   const variants = {};
@@ -91,11 +97,14 @@ for (const d of catalogue) {
   if (entries.length > 1) d.product_images = variants;
 }
 
-// Inline downloaded product renders; devices without a render use the SVG
-// placeholder in the UI.
+// Inline downloaded product renders; everything else loads from the vendor
+// hub at runtime, with the inlined placeholder shown while it downloads.
 for (const d of catalogue) {
   if (d.product_image) {
-    try { d.product_image = dataUri(d.product_image); } catch { delete d.product_image; }
+    if (d.product_image === `assets/products/${placeholderFile}`) delete d.product_image;
+    else {
+      try { d.product_image = dataUri(d.product_image); } catch { delete d.product_image; }
+    }
   }
   if (d.product_images && typeof d.product_images === 'object') {
     for (const colour of Object.keys(d.product_images)) {
@@ -126,7 +135,7 @@ const out = template
   .replace('__ANT_LIB__', () => antLib)
   .replace('__HID__', () => hid.trim())
   .replace('__I18N__', () => i18n.trim().replace('__LOCALES__', () => JSON.stringify(locales)))
-  .replace('__APP__', () => app.trim())
+  .replace('__APP__', () => app.trim().split('__PLACEHOLDER_IMG__').join(placeholderImg))
   .replace('__ANT_CONTROLS__', () => antControls.trim().replace('__FLAGS__', () => JSON.stringify(flags)));
 
 writeFileSync(resolve(root, 'index.html'), out);
