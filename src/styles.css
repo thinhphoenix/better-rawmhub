@@ -453,10 +453,11 @@ select.input option { background: #141414; color: #e9ebee; }
 /* SVG mouse map (device-agnostic) */
 .mouse-map {
   position: relative; display: grid; place-items: center;
-  min-height: 430px; padding: 22px 18px;
+  padding: 18px;
   background: #0d0f13;
   border-bottom: 1px solid var(--line);
 }
+.setup-photo { display: block; width: auto; height: auto; max-width: 100%; max-height: 430px; border-radius: 4px; }
 .mouse-wrap { position: relative; width: min(280px, 80%); }
 .mouse-photo { display: block; width: 100%; height: auto; max-height: none; object-fit: contain; filter: drop-shadow(0 26px 30px rgba(0, 0, 0, 0.65)); }
 .mouse-wrap .hotspot { width: 22px; height: 22px; }
