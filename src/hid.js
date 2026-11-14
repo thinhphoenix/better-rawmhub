@@ -241,6 +241,16 @@ const RAWM = (() => {
       this.info = null;
     }
 
+    async waitForIdle(timeout = 1500) {
+      const start = Date.now();
+      while (Date.now() - start < timeout) {
+        const busy = (this.queue && this.queue.length) || this.txQueue.length || this.txTimer || this.pumpTimer;
+        if (!busy) return true;
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+      return false;
+    }
+
     emit(name, detail) {
       this.dispatchEvent(new CustomEvent(name, { detail }));
     }

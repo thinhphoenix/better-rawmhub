@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "นี่คือตัวกำหนดค่าบนเว็บ แอปเนทีฟเพิ่มการแฟลชเฟิร์มแวร์และโปรไฟล์ออฟไลน์",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "ลำดับความสำคัญ การกดค้าง และระยะหลายระดับ ฟีเจอร์เหล่านี้อยู่ในเฟิร์มแวร์คีย์บอร์ด",
   "Switch the device to": "สลับอุปกรณ์ไปที่",
-  ", or connect it with a USB cable.": " หรือเชื่อมต่อด้วยสาย USB"
+  ", or connect it with a USB cable.": " หรือเชื่อมต่อด้วยสาย USB",
+  "Firmware channel changed — connect again to continue.": "เปลี่ยนช่องเฟิร์มแวร์แล้ว — เชื่อมต่อใหม่เพื่อดำเนินการต่อ"
 }

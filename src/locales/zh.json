@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "这是网页配置器。原生应用增加了固件刷写和离线配置。",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "优先级、点按保持和多段行程。这些功能在键盘固件上运行，而不是主机。",
   "Switch the device to": "将设备切换到",
-  ", or connect it with a USB cable.": "，或用 USB 线连接。"
+  ", or connect it with a USB cable.": "，或用 USB 线连接。",
+  "Firmware channel changed — connect again to continue.": "固件通道已更改 — 请重新连接以继续。"
 }

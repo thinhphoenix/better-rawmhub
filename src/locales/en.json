@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "This page is the web configurator. The native apps add firmware flashing and offline device profiles.",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.",
   "Switch the device to": "Switch the device to",
-  ", or connect it with a USB cable.": ", or connect it with a USB cable."
+  ", or connect it with a USB cable.": ", or connect it with a USB cable.",
+  "Firmware channel changed — connect again to continue.": "Firmware channel changed — connect again to continue."
 }

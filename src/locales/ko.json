@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "웹 구성 도구입니다. 네이티브 앱은 펌웨어 플래시와 오프라인 프로필을 제공합니다.",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "우선순위, 탭 홀드, 다단 이동. 이 기능은 키보드 펌웨어에서 동작합니다.",
   "Switch the device to": "장치를 다음으로 전환하세요",
-  ", or connect it with a USB cable.": ", 또는 USB 케이블로 연결하세요."
+  ", or connect it with a USB cable.": ", 또는 USB 케이블로 연결하세요.",
+  "Firmware channel changed — connect again to continue.": "펌웨어 채널이 변경되었습니다 — 계속하려면 다시 연결하세요."
 }

@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "これは Web コンフィギュレーターです。ネイティブアプリではファームウェア書き込みとオフラインプロファイルが使えます。",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "優先度、タップホールド、多段ストローク。これらの機能はキーボードのファームウェア側にあります。",
   "Switch the device to": "デバイスを切り替えて",
-  ", or connect it with a USB cable.": "、または USB ケーブルで接続します。"
+  ", or connect it with a USB cable.": "、または USB ケーブルで接続します。",
+  "Firmware channel changed — connect again to continue.": "ファームウェアチャンネルを変更しました — 続けるには再接続してください。"
 }

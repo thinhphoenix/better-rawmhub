@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "Este es el configurador web. Las apps nativas añaden flasheo de firmware y perfiles sin conexión.",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "Prioridad, pulsación mantenida y recorrido multietapa. Estas funciones están en el firmware del teclado.",
   "Switch the device to": "Cambia el dispositivo a",
-  ", or connect it with a USB cable.": ", o conéctalo con un cable USB."
+  ", or connect it with a USB cable.": ", o conéctalo con un cable USB.",
+  "Firmware channel changed — connect again to continue.": "Canal de firmware cambiado — vuelve a conectar para continuar."
 }

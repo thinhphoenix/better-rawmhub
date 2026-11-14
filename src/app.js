@@ -93,6 +93,7 @@
     log: [],
     logOpen: false,
     busy: false,
+    fwSwitching: false,
   };
 
   const transport = new RAWM.Transport((dir, msg) => addLog(dir, msg));
@@ -1457,9 +1458,12 @@ python -m http.server 8080</pre>
     reconnectTimer = setTimeout(tick, 1600);
   }
 
-  function disconnectDevice() {
+  function disconnectDevice(message = 'Device disconnected') {
     state.connected = false;
     state.handshake = 'idle';
+    state.fwSwitching = false;
+    clearTimeout(liveTimer);
+    clearTimeout(saveTimer);
     transport.disconnect();
     clearTimeout(reconnectTimer);
     state.profile = null;
@@ -1467,7 +1471,7 @@ python -m http.server 8080</pre>
     state.cfg = null;
     state.dirty = false;
     state.capturing = false;
-    toast('Device disconnected', 'info');
+    toast(message, 'info');
     go('device');
   }
 
@@ -2018,7 +2022,7 @@ python -m http.server 8080</pre>
     if (bind.startsWith('zones.')) { refreshSettingsUi(); return; }
   });
 
-  document.addEventListener('change', (e) => {
+  document.addEventListener('change', async (e) => {
     if (e.target && e.target.id === 'lang-select') {
       const next = e.target.value;
       // Defer so React can finish the Select event before the tree is rebuilt.
@@ -2029,15 +2033,21 @@ python -m http.server 8080</pre>
       return;
     }
     if (e.target && e.target.id === 'fw-channel' && state.cfg) {
-      state.cfg.fwChannel = Number(e.target.value);
+      const next = Number(e.target.value);
+      state.cfg.fwChannel = next;
       if (state.connected) {
-        transport.writeGamingOnly(state.cfg.fwChannel === 1);
-        transport.save();
-        transport.reboot();
+        state.fwSwitching = true;
         state.handshake = 'waiting';
-        render();
-        toast('FW channel changed — device is rebooting…', 'info');
-        scheduleReconnect();
+        try {
+          transport.writeGamingOnly(next === 1);
+          transport.save();
+          await transport.waitForIdle(1500);
+          transport.reboot();
+          await transport.waitForIdle(700);
+        } catch (err) {
+          addLog('err', 'fw channel: ' + (err.message || err));
+        }
+        disconnectDevice('Firmware channel changed — connect again to continue.');
       }
       return;
     }
@@ -2130,6 +2140,7 @@ python -m http.server 8080</pre>
     toast('This HID interface is read-only over WebHID', 'err');
   });
   transport.addEventListener('gone', () => {
+    if (state.fwSwitching) return;
     if (!state.connected) return;
     state.handshake = 'waiting';
     render();

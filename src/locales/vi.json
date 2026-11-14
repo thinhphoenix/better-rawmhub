@@ -192,5 +192,6 @@
   "This page is the web configurator. The native apps add firmware flashing and offline device profiles.": "Đây là bản cấu hình trên web. Ứng dụng gốc có thêm flash firmware và hồ sơ offline.",
   "Priority, tap-hold and multi-stage travel. These features live on the keyboard firmware, not the host.": "Ưu tiên, tap-hold và hành trình nhiều tầng. Các tính năng này nằm trên firmware bàn phím, không phải máy tính.",
   "Switch the device to": "Chuyển thiết bị sang",
-  ", or connect it with a USB cable.": ", hoặc kết nối bằng cáp USB."
+  ", or connect it with a USB cable.": ", hoặc kết nối bằng cáp USB.",
+  "Firmware channel changed — connect again to continue.": "Đã đổi kênh firmware — kết nối lại để tiếp tục."
 }
