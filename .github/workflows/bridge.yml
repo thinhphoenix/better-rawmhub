@@ -57,6 +57,9 @@ jobs:
           Copy-Item "bridge/rust/target/${{ matrix.target }}/release/better-rawmhub-bridge.exe" dist/
           Copy-Item bridge/install.ps1 dist/
           Compress-Archive -Path dist/* -DestinationPath "better-rawmhub-bridge-${{ matrix.asset }}.zip"
+          # Publishes the daemon on its own as well: it is portable, so the page
+          # can link straight at a .exe instead of asking people to unzip.
+          Copy-Item "dist/better-rawmhub-bridge.exe" "better-rawmhub-bridge.exe"
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -73,6 +76,7 @@ jobs:
           path: |
             better-rawmhub-bridge-${{ matrix.asset }}.zip
             better-rawmhub-bridge-${{ matrix.asset }}.tar.gz
+            better-rawmhub-bridge.exe
           if-no-files-found: ignore
 
   release:
