@@ -67,3 +67,5 @@ if ($AutoStart) {
 Write-Host ""
 Write-Host "Windows warns that the publisher is unknown (the build is not signed):"
 Write-Host "choose More info -> Run anyway, or add $target to Defender exclusions."
+Write-Host ""
+Write-Host "To remove it later, run uninstall.ps1 from the same archive."

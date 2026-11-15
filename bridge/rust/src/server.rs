@@ -20,7 +20,7 @@ use tungstenite::protocol::{Role, WebSocket};
 use tungstenite::Message;
 
 pub const API: u32 = 1;
-pub const VERSION: &str = "0.2.0";
+pub const VERSION: &str = "0.2.1";
 pub const DEFAULT_PORT: u16 = 47311;
 
 const PAIR_TTL: Duration = Duration::from_secs(600);

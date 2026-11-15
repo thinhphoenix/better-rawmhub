@@ -56,10 +56,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item "bridge/rust/target/${{ matrix.target }}/release/better-rawmhub-bridge.exe" dist/
           Copy-Item bridge/install.ps1 dist/
+          Copy-Item bridge/uninstall.ps1 dist/
           Compress-Archive -Path dist/* -DestinationPath "better-rawmhub-bridge-${{ matrix.asset }}.zip"
           # Publishes the daemon on its own as well: it is portable, so the page
           # can link straight at a .exe instead of asking people to unzip.
           Copy-Item "dist/better-rawmhub-bridge.exe" "better-rawmhub-bridge.exe"
+          Copy-Item "dist/uninstall.ps1" "uninstall-windows.ps1"
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
@@ -67,8 +69,12 @@ jobs:
           mkdir -p dist
           cp "bridge/rust/target/${{ matrix.target }}/release/better-rawmhub-bridge" dist/
           cp bridge/install.command dist/
+          cp bridge/uninstall.command dist/
           cp bridge/linux/70-better-rawmhub.rules dist/
           tar -czf "better-rawmhub-bridge-${{ matrix.asset }}.tar.gz" -C dist .
+          if [ "${{ matrix.asset }}" = "mac-arm64" ] || [ "${{ matrix.asset }}" = "mac-x64" ]; then
+            cp bridge/uninstall.command "uninstall-macos.command"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -77,6 +83,8 @@ jobs:
             better-rawmhub-bridge-${{ matrix.asset }}.zip
             better-rawmhub-bridge-${{ matrix.asset }}.tar.gz
             better-rawmhub-bridge.exe
+            uninstall-windows.ps1
+            uninstall-macos.command
           if-no-files-found: ignore
 
   release:

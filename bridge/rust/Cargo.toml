@@ -1,6 +1,6 @@
 [package]
 name = "better-rawmhub-bridge"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Loopback WebSocket bridge that gives browsers without WebHID (Firefox, Safari) access to RAWM mice and keyboards"
 license = "MIT"

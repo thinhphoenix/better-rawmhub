@@ -118,6 +118,39 @@ The daemon is a door into your USB devices, so it is deliberately narrow:
 
 Nothing leaves the machine. There is no telemetry.
 
+## Uninstall
+
+Nothing else on the machine is involved, so removing it is small and reversible.
+
+**Windows** — run `uninstall.ps1` from the zip (right-click → *Run with
+PowerShell*), or do it by hand:
+
+```powershell
+& "$env:LOCALAPPDATA\BetterRawmHubBridge\better-rawmhub-bridge.exe" --stop
+Remove-Item "$env:LOCALAPPDATA\BetterRawmHubBridge" -Recurse -Force
+Remove-Item 'HKCU:\Software\Classes\betterrawm' -Recurse -Force
+Remove-Item "$([Environment]::GetFolderPath('Programs'))\Better RAWM Hub Bridge.lnk"
+Remove-Item "$([Environment]::GetFolderPath('Programs'))\Stop Better RAWM Hub Bridge.lnk"
+```
+
+That removes the daemon, its config and log, the `betterrawm://` handler and the
+Start-menu entries. If you installed with `-AutoStart`, also delete
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Better RAWM Hub Bridge.lnk`.
+
+**macOS** — run `uninstall.command`, or:
+
+```sh
+launchctl unload ~/Library/LaunchAgents/io.better-rawmhub.bridge.plist
+rm -f ~/Library/LaunchAgents/io.better-rawmhub.bridge.plist
+rm -rf "$HOME/Library/Application Support/BetterRawmHubBridge"
+```
+
+**Linux** — `./better-rawmhub-bridge --stop`, delete the binary and, if you added
+it, `/etc/udev/rules.d/70-better-rawmhub.rules`.
+
+Nothing is written anywhere else: no services, no scheduled tasks, no drivers.
+Chrome and Edge keep working over WebHID with nothing installed.
+
 ## Protocol (v1)
 
 JSON control frames, binary frames for input reports.
