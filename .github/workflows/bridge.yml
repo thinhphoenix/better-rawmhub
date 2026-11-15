@@ -1,0 +1,86 @@
+name: bridge
+
+# Builds the shipped daemon for every platform we publish a download for.
+# Trigger manually, or by pushing a tag such as bridge-v0.1.0.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'bridge-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: win-x64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            asset: mac-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            asset: mac-x64
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            asset: linux-x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Test the security rules
+        run: cargo test --release --manifest-path bridge/rust/Cargo.toml
+
+      - name: Build
+        run: cargo build --release --manifest-path bridge/rust/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "bridge/rust/target/${{ matrix.target }}/release/better-rawmhub-bridge.exe" dist/
+          Copy-Item bridge/install.ps1 dist/
+          Compress-Archive -Path dist/* -DestinationPath "better-rawmhub-bridge-${{ matrix.asset }}.zip"
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp "bridge/rust/target/${{ matrix.target }}/release/better-rawmhub-bridge" dist/
+          cp bridge/install.command dist/
+          cp bridge/linux/70-better-rawmhub.rules dist/
+          tar -czf "better-rawmhub-bridge-${{ matrix.asset }}.tar.gz" -C dist .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: better-rawmhub-bridge-${{ matrix.asset }}
+          path: |
+            better-rawmhub-bridge-${{ matrix.asset }}.zip
+            better-rawmhub-bridge-${{ matrix.asset }}.tar.gz
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/bridge-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

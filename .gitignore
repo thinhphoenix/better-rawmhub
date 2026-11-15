@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Rust build output for the bridge daemon
+bridge/rust/target/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
@@ -9,7 +12,7 @@ desktop.ini
 .idea/
 
 # Local research material (vendor bundle, catalogue snapshots)
-reference/
+/reference/
 
 # generated antd bundle (rebuilt by `npm run build`)
 assets/ant.js

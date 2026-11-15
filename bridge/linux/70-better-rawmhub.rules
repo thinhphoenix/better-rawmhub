@@ -1,0 +1,4 @@
+# Lets the logged-in user open RAWM HID interfaces without running as root.
+#   sudo cp 70-better-rawmhub.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915", TAG+="uaccess"

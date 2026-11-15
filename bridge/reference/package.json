@@ -1,0 +1,23 @@
+{
+  "name": "better-rawmhub-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference Node implementation of better-rawmhub-bridge (protocol cross-checks; the shipped daemon lives in bridge/rust)",
+  "license": "MIT",
+  "bin": {
+    "better-rawmhub-bridge": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "node-hid": "^3.1.0",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+
+
