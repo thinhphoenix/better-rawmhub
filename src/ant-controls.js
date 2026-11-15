@@ -103,7 +103,8 @@
         className: 'star-count',
         'data-star-count': '',
         hidden: badge.hidden || undefined,
-      }, badge.textContent)]
+        dangerouslySetInnerHTML: { __html: badge.innerHTML },
+      })]
       : (text || null);
     return h(Button, props, children);
   };

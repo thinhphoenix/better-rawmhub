@@ -153,12 +153,23 @@ img.device-render.is-loaded { background-image: none; }
 .batt-readout { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
 /* Star count inside the GitHub button: quiet, separated by a hairline. */
 .star-count {
+  display: inline-flex; align-items: center; gap: 4px;
   margin-left: 2px; padding-left: 8px;
   border-left: 1px solid rgba(255, 255, 255, 0.22);
   font-family: var(--mono); font-size: 11px; font-weight: 500;
   color: rgba(255, 255, 255, 0.82);
 }
+.star-glyph { width: 11px; height: 11px; opacity: 0.85; position: relative; top: -1px; }
 .topbar .star-count { font-size: 10px; color: var(--muted); border-left-color: rgba(255, 255, 255, 0.16); }
+.topbar .star-glyph { width: 10px; height: 10px; }
+/* Hover: the count and the star pick up the app's yellow. */
+a.btn:hover .star-count,
+.ant-btn:hover .star-count {
+  color: #ffdd00;
+  border-left-color: rgba(255, 221, 0, 0.45);
+}
+a.btn:hover .star-count .star-glyph,
+.ant-btn:hover .star-count .star-glyph { opacity: 1; }
 
 /* ── Main / topbar ──────────────────────────────────────────────────── */
 .main { min-width: 0; display: flex; flex-direction: column; }

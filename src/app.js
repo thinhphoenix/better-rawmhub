@@ -1255,7 +1255,9 @@
     $$('[data-star-count]').forEach((el) => {
       const known = starCount != null;
       el.hidden = !known;
-      el.textContent = known ? formatStars(starCount) : '';
+      const value = el.querySelector('[data-star-value]');
+      if (value) value.textContent = known ? formatStars(starCount) : '';
+      else el.textContent = known ? formatStars(starCount) : '';
     });
   }
 
@@ -1334,7 +1336,7 @@
           <div class="kv" style="margin-top:10px"><span class="k">Repository</span><a class="v" href="${REPO_URL}" target="_blank" rel="noopener">thinhphoenix/better-rawmhub</a></div>
           <div class="kv"><span class="k">Issues</span><a class="v" href="${REPO_URL}/issues" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}/issues</a></div>
           <div class="row" style="margin-top:14px;flex-wrap:wrap">
-            <a class="btn btn-primary btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span><span class="star-count" data-star-count hidden></span></a>
+            <a class="btn btn-primary btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span><span class="star-count" data-star-count hidden><span data-star-value></span><svg class="ic star-glyph" aria-hidden="true"><use href="#i-star"/></svg></span></a>
             <a class="btn btn-ghost btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('github')}<span>View source</span></a>
           </div>
         </div>

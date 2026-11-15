@@ -62,10 +62,13 @@ let iconSprite = '';
 // Icons that read better without the 20%-opacity fill: pulled from the regular
 // (outline) set instead of duotone.
 const OUTLINE_ICONS = new Set(['chevron', 'arrow', 'x']);
+const FILL_ICONS = new Set(['star']);
 for (const [id, name] of Object.entries(iconMap)) {
-  const svg = OUTLINE_ICONS.has(id)
-    ? read(`node_modules/@phosphor-icons/core/assets/regular/${name}.svg`)
-    : read(`node_modules/@phosphor-icons/core/assets/duotone/${name}-duotone.svg`);
+  const svg = FILL_ICONS.has(id)
+    ? read(`node_modules/@phosphor-icons/core/assets/fill/${name}-fill.svg`)
+    : OUTLINE_ICONS.has(id)
+      ? read(`node_modules/@phosphor-icons/core/assets/regular/${name}.svg`)
+      : read(`node_modules/@phosphor-icons/core/assets/duotone/${name}-duotone.svg`);
   const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>[\s\S]*$/, '');
   iconSprite += `<symbol id="i-${id}" viewBox="0 0 256 256">${inner}</symbol>`;
 }
