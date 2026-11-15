@@ -316,7 +316,9 @@
       while (colors.length < 8) colors.push(0);
       cfg.levelColors = colors;
     }
-    if (Number.isFinite(Number(info.pr)) && Number(info.pr) > 0) cfg.polling = Number(info.pr);
+    // The query result calls it `polling`; older builds used `pr`.
+    const polling = info.pr != null ? info.pr : info.polling;
+    if (Number.isFinite(Number(polling)) && Number(polling) > 0) cfg.polling = Number(polling);
     if (info.lod != null) cfg.lod = Number(info.lod);
     if (info.st != null) cfg.sleep = Math.max(1, Math.round(Number(info.st) / 60) || 10);
     const lightVal = info.light != null ? info.light : info.l;
@@ -463,7 +465,7 @@
     const c = state.cfg;
     const info = state.info || {};
     const battery = Number.isFinite(Number(info.battery)) ? Number(info.battery) : null;
-    const charging = !!Number(info.charging);
+    const charging = Number(info.chg ?? info.charging ?? 0) === 1;
     const onboardMax = c.onboardMax || 5;
     const connection = transport.isReceiver ? '2.4 GHz receiver' : 'USB cable';
     const levels = c.dpiLevels.length ? c.dpiLevels : [c.cpiX];
@@ -573,7 +575,7 @@
       </section>
     </div>
 
-    <div class="split" style="margin-top:14px">
+    <div class="split split-even" style="margin-top:14px">
       <section class="card">
         <div class="card-head">
           <div class="ch-title">${icon('chip')}<div><h2>Onboard profiles</h2><p>Select the slot written by the device</p></div></div>
@@ -602,7 +604,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card stretch">
         <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>Device details</h2><p>Reported by the firmware</p></div></div></div>
         <div class="card-body">
           <div class="kv"><span class="k">Firmware</span><span class="v">${esc((state.info && (state.info.r || state.info.revision)) || '—')}</span></div>
@@ -610,7 +612,6 @@
           <div class="kv"><span class="k">Sensor</span><span class="v">${esc(p.sensor || '—')}</span></div>
           <div class="kv"><span class="k">SoC</span><span class="v">${esc(p.soc || '—')}</span></div>
           <div class="kv"><span class="k">Connection</span><span class="v ${state.connected ? 'good' : ''}">${esc(connection)}</span></div>
-          <div class="kv"><span class="k">Lighting</span><span class="v">${p.light ? 'RGB' : 'None'}</span></div>
           <div class="kv"><span class="k">Profiles</span><span class="v">${onboardMax} slots</span></div>
         </div>
       </section>
@@ -1323,6 +1324,105 @@
     </section>`;
   }
 
+  /* ── Loading skeleton ──────────────────────────────────────────────── */
+  function loadingView() {
+    const p = state.profile || {};
+    const noReply = state.handshake === 'timeout';
+    const broken = state.handshake === 'error';
+    const label = noReply ? 'NO REPLY' : broken ? 'READ ERROR' : 'READING DEVICE';
+    const note = noReply
+      ? `<div class="notice warn">${icon('alert')}<span><strong>The device did not answer the query.</strong> Close RAWM HUB desktop if it is running, switch the mouse to 2.4 GHz or plug the cable in, then try again. <button class="link-btn" data-action="handshake">Send query again</button></span></div>`
+      : broken
+        ? `<div class="notice danger">${icon('alert')}<span><strong>This HID interface is read-only over WebHID.</strong> Pick another RAWM interface in the browser prompt, or connect the mouse with a cable.</span></div>`
+        : `<div class="notice">${icon('info')}<span>Reading the configuration from the device. Nothing is shown until the device answers, so no value here is a guess. <button class="link-btn" data-action="handshake">Send query again</button></span></div>`;
+
+    /* The skeleton reuses the real layout classes, so nothing jumps when the
+       answer arrives: same hero grid, same stat cells, same cards. */
+    const ln = (w, h = 10, extra = '') => `<span class="skel-line" style="width:${w}%;height:${h}px;${extra}"></span>`;
+    const statCell = () => `<div class="stat">
+        <div class="stat-label">${ln(48, 8)}<span class="skel-dot" style="width:13px;height:13px"></span></div>
+        ${ln(62, 25, 'margin-top:9px;border-radius:5px')}
+        <div class="stat-bar"><i style="width:0"></i></div>
+      </div>`;
+    const head = (glyph, title) => `<div class="card-head"><div class="ch-title">${icon(glyph)}<div><h2>${title}</h2>${ln(44, 8, 'margin-top:5px')}</div></div></div>`;
+    const stages = Array.from({ length: 4 }).map(() => `<div class="dpi-stage"><span class="skel-box" style="display:block;height:46px;border-radius:4px"></span></div>`).join('');
+    const chips = Array.from({ length: 4 }).map(() => `<span class="skel-box" style="height:30px;border-radius:4px"></span>`).join('');
+    const slots = Array.from({ length: 5 }).map(() => `<div class="profile-tile"><span class="skel-line" style="width:40%;height:8px"></span><span class="skel-line" style="width:70%;height:10px;margin-top:7px"></span><span class="skel-line" style="width:100%;height:4px;margin-top:10px"></span></div>`).join('');
+    const kv = () => `<div class="kv"><span class="skel-line" style="width:32%;height:8px"></span><span class="skel-line" style="width:26%;height:8px"></span></div>`;
+
+    return `
+    ${pageHead('Device overview', esc(p.title || 'RAWM device'),
+      'Reading the configuration from the device.',
+      `<span class="pill accent">${label}</span><button class="btn btn-danger btn-sm" data-action="disconnect">Disconnect</button>`)}
+    ${note}
+
+    <section class="card hero">
+      <div class="hero-stage">
+        <div class="stage-tags">
+          <span class="tag accent"><span class="dot on"></span>${label}</span>
+          <span class="tag">${ln(38, 8, 'width:38px')}</span>
+        </div>
+        <span class="skel-box" style="width:min(64%, 300px);height:280px;border-radius:10px"></span>
+        <span class="skel-line" style="position:absolute;left:20px;bottom:18px;width:150px;height:9px"></span>
+      </div>
+      <div class="hero-panel">
+        <div class="hero-id">
+          ${ln(18, 8)}
+          ${ln(58, 24, 'margin-top:12px;border-radius:5px')}
+          <div class="meta">
+            <span class="skel-box" style="width:84px;height:25px;border-radius:4px"></span>
+            <span class="skel-box" style="width:104px;height:25px;border-radius:4px"></span>
+            <span class="skel-box" style="width:64px;height:25px;border-radius:4px"></span>
+          </div>
+        </div>
+        <div class="stat-grid">${statCell()}${statCell()}${statCell()}${statCell()}</div>
+      </div>
+    </section>
+
+    <div class="grid g-3" style="margin-top:14px">
+      <section class="card">
+        ${head('sliders', 'Sensitivity')}
+        <div class="card-body">
+          ${ln(46, 42, 'border-radius:6px')}
+          <div class="dpi-stages">${stages}</div>
+          ${ln(34, 10, 'margin-top:14px')}
+        </div>
+      </section>
+      <section class="card">
+        ${head('wave', 'Polling rate')}
+        <div class="card-body">
+          ${ln(34, 42, 'border-radius:6px')}
+          <div class="seg-wrap" style="margin-top:14px;display:grid;grid-template-columns:repeat(4,1fr)">${chips}</div>
+          ${ln(62, 8, 'margin-top:14px')}
+        </div>
+      </section>
+      <section class="card">
+        ${head('bulb', 'Lighting')}
+        <div class="card-body">
+          <span class="skel-box" style="display:block;height:118px;border-radius:9px"></span>
+          ${ln(38, 10, 'margin-top:14px')}
+        </div>
+      </section>
+    </div>
+
+    <div class="split split-even" style="margin-top:14px">
+      <section class="card">
+        ${head('chip', 'Onboard profiles')}
+        <div class="card-body">
+          <div class="profiles">${slots}</div>
+          <div class="setting-row" style="margin-top:16px">
+            <div class="sr-main">${ln(34, 10)}<span class="skel-line" style="display:block;width:64%;height:8px;margin-top:7px"></span></div>
+            <span class="skel-box" style="width:40px;height:20px;border-radius:100px"></span>
+          </div>
+        </div>
+      </section>
+      <section class="card stretch">
+        ${head('info', 'Device details')}
+        <div class="card-body">${kv()}${kv()}${kv()}${kv()}${kv()}</div>
+      </section>
+    </div>`;
+  }
+
   /* ── Router / shell ────────────────────────────────────────────────── */
   const PAGE_TITLES = {
     device: 'Device', buttons: 'Buttons', performance: 'Performance', lighting: 'Lighting',
@@ -1336,7 +1436,11 @@
     if (window.__antCleanup) window.__antCleanup();
     const page = state.page;
     const gated = PAGE_GATE.includes(page) && !state.connected;
-    const html = gated ? connectView() : ({
+    // Connected but the device has not answered the query yet: show a skeleton
+    // instead of a view built from catalogue defaults, which would look like
+    // real (wrong) DPI / polling values.
+    const pending = state.connected && state.handshake !== 'ready' && PAGE_GATE.includes(page);
+    const html = gated ? connectView() : pending ? loadingView() : ({
       device: deviceView,
       buttons: buttonsView,
       performance: performanceView,
@@ -1730,7 +1834,7 @@
 
     const info = state.info || {};
     const battery = Number.isFinite(Number(info.battery)) ? Number(info.battery) : null;
-    const charging = !!Number(info.charging);
+    const charging = Number(info.chg ?? info.charging ?? 0) === 1;
     const profileEl = $('[data-live="profile"]');
     if (profileEl) profileEl.textContent = String((c.onboard | 0) + 1);
     $$('[data-live="battery"]').forEach((el) => { el.textContent = battery != null ? String(battery) : '—'; });
@@ -2185,6 +2289,7 @@
     const n = ev.detail;
     if (!state.info) state.info = {};
     if (n.battery != null) state.info.battery = n.battery;
+    if (n.chg != null) state.info.chg = n.chg;
     if (n.cpi != null && state.cfg) state.cfg.cpiX = n.cpi & 0xffff;
     if (n.polling != null && state.cfg) state.cfg.polling = n.polling;
     refreshSettingsUi();

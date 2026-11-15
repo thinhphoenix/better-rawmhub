@@ -57,6 +57,21 @@ const RAWM = (() => {
 
   const LED = { BLINK: 0x80, ROTATE: 0x40, AUTO_OFF: 0x20, CPI: 0x10, FLAG: 0x08, R: 0x04, G: 0x02, B: 0x01 };
 
+  /* Every wired input report ends with this 29-byte device trailer (status
+     counters). It is not part of the byte stream. */
+  const STREAM_TRAILER = 29;
+
+  /* Fields carried by the query-result JSON. The app reads a subset, but the
+     whole set is kept so wiring a device through the field-wise recovery path
+     builds the same config as a clean JSON parse. */
+  const INFO_KEYS = [
+    'r', 'rc', 'dn', 'pi', 'vi', 'battery', 'chg', 'cpi', 'cpi_l', 'cpi_l_c',
+    'polling', 'light', 'lod', 'lod_c', 'ms', 'at', 'at2', 'cn', 'pm', 'kd',
+    'ocn', 'oci', 'ocs', 'ec', 'dgom', 'sst', 'lbn', 'hc', 'rr', 'rrc', 'ht',
+    'esb_selected', 'esb_addr', 'lz', 'st', 'rf_ch', 'top', 'atp', 'co',
+    'noack', 'lua', 'gm', 'ob', 'msg', 'crc',
+  ];
+
   /* CRC-16/CCITT-FALSE as implemented by crc16_compute() in the bundle. */
   function crc16(bytes) {
     let crc = 0xffff;
@@ -153,6 +168,7 @@ const RAWM = (() => {
       this.info = null;
       this.queryText = '';
       this.infoText = '';
+      this.stream = '';
       this.queryAttempts = 0;
 
       // Pick the actual output report from the descriptor. Receivers and
@@ -223,7 +239,7 @@ const RAWM = (() => {
           return;
         }
         this.query();
-      }, 1400);
+      }, 700);
     }
 
     disconnect() {
@@ -271,11 +287,12 @@ const RAWM = (() => {
     query() {
       this.queryAttempts = (this.queryAttempts || 0) + 1;
       this.queryText = '';
+      this.queryAt = Date.now();
       clearTimeout(this.queryTimer);
       this.queryTimer = setTimeout(() => {
         if (this.device && !this.info) {
           this.emit('timeout', null);
-          this.log('err', 'no query response — check 2.4 GHz mode / USB cable, close other HID software, then retry');
+          this.log('err', `no query response after ${Date.now() - this.queryAt} ms — check 2.4 GHz mode / USB cable, close other HID software, then retry`);
           this.log('rx', `buffer ${this.buffer.length}B · json ${(this.infoText || '').length}B · tail ${hex(this.buffer.subarray(-96))}`);
         }
       }, 5000);
@@ -495,13 +512,13 @@ const RAWM = (() => {
       if (off >= data.length) return;
       const head = data[off];
       if (head === 0x52) {
-        /* Status report. Wired firmware prefixes an 18-byte device header
-           (counter, current CPI, flags) in front of the byte stream, so frames
-           and JSON chunks start at offset 19. Feeding that header back into
-           the scanner corrupted any frame spanning reports — that is what
-           broke the wired handshake. */
-        if (data.length <= off + 19) return;
-        this.feed(data.subarray(off + 19));
+        /* Wired status report: [0x52][18-byte device header][16 stream bytes]
+           [29-byte device trailer]. The header and the trailer both have to be
+           dropped or they land in the middle of the byte stream and break every
+           frame and JSON chunk that spans reports. */
+        const end = data.length > off + 19 + STREAM_TRAILER ? data.length - STREAM_TRAILER : data.length;
+        if (end <= off + 19) return;
+        this.feed(data.subarray(off + 19, end));
         return;
       }
       if (head === 0x40) return; // buffer-size advertisement, no payload
@@ -520,21 +537,39 @@ const RAWM = (() => {
       merged.set(chunk, this.buffer.length);
       this.buffer = merged;
       if (this.buffer.length > 8192) this.buffer = this.buffer.subarray(this.buffer.length - 4096);
+      /* Keep the raw byte stream too: wired firmware interleaves the JSON with
+         a per-report device trailer and re-sends it every retry, so only a
+         field-wise scan over the stream survives. */
+      if (!this.info) {
+        this.stream = (this.stream || '') + new TextDecoder('latin1').decode(chunk);
+        if (this.stream.length > 8192) this.stream = this.stream.slice(-4096);
+      }
       this.drain();
+    }
+
+    /* True when the head of the buffer is an unfinished frame or JSON object.
+       Its payload bytes (JSON text in particular) look like frames, so the
+       scanner must wait instead of consuming them. */
+    headIncomplete() {
+      if (this.info || !this.buffer.length) return false;
+      const head = this.buffer[0];
+      if (head === 0x7b) {
+        for (let k = 0; k < this.buffer.length; k++) if (this.buffer[k] === 0x7d) return false;
+        return true;
+      }
+      if (this.buffer.length < 2) return false;
+      const cmd = head & 0x0f;
+      const len = ((head & 0xf0) << 4) | this.buffer[1];
+      const known = cmd === CMD.QUERY_RESULT || cmd === CMD.NOTIFY ||
+        cmd === CMD.CONFIG || cmd === CMD.ACTION || cmd === CMD.PING;
+      return known && len >= 3 && len <= 900 && this.buffer.length < len;
     }
 
     drain() {
       let i = 0;
       let parsedAny = false;
-      // While the handshake is open, let an incomplete QUERY_RESULT frame at
-      // the head finish before scanning: the JSON inside it can look like
-      // frames, and a false match would swallow the real answer.
-      if (!this.info && this.buffer.length >= 2) {
-        const headCmd = this.buffer[0] & 0x0f;
-        const headLen = ((this.buffer[0] & 0xf0) << 4) | this.buffer[1];
-        if (headCmd === CMD.QUERY_RESULT && headLen >= 3 && headLen <= 900 && this.buffer.length < headLen) return;
-      }
       while (i + 2 <= this.buffer.length) {
+        if (i === 0 && this.headIncomplete()) return;
         const cmd = this.buffer[i] & 0x0f;
         const len = ((this.buffer[i] & 0xf0) << 4) | this.buffer[i + 1];
         const fits = len >= 3 && len <= 900 && i + len <= this.buffer.length;
@@ -556,8 +591,45 @@ const RAWM = (() => {
         // notify frames were parsed from the same stream.
         const streamed = this.infoJson();
         if (streamed) { this.acceptInfo(streamed, 'json stream'); return; }
+        // A complete object found in the raw buffer beats field-wise recovery:
+        // it carries every value, including the DPI stage list.
         this.salvageJson();
+        if (this.info) return;
+        const fields = this.extractInfo();
+        if (fields) this.acceptInfo(fields, 'stream fields');
       }
+    }
+
+    /* Field-wise recovery. Wired firmware packs the JSON into reports that also
+       carry a device trailer, and re-sends the whole message on every retry, so
+       the object never appears as one contiguous string. Every "key":value whose
+       value ends at a delimiter is still intact, so collect those.
+
+       Only used once the answer is complete: accepting the first few keys would
+       pin an info object without cpi / polling / cpi_l and the app would fall
+       back to catalogue defaults (the "wrong DPI" symptom). */
+    extractInfo() {
+      const stream = this.stream || '';
+      if (stream.length < 128) return null;
+      if (stream.lastIndexOf('}') < 0) return null;
+      const grab = (key) => {
+        const re = new RegExp('"' + key + '"\\s*:\\s*("(?:[^"\\\\]|\\\\.)*"|\\[[^\\]]*\\]|-?\\d+(?:\\.\\d+)?|true|false)(?=\\s*[,}])', 'g');
+        let m;
+        let last;
+        while ((m = re.exec(stream)) !== null) last = m[1];
+        if (last === undefined) return undefined;
+        try { return JSON.parse(last); } catch { return last; }
+      };
+      const info = {};
+      for (const key of INFO_KEYS) {
+        const value = grab(key);
+        if (value !== undefined) info[key] = value;
+      }
+      if (info.r == null || (info.pi == null && info.dn == null)) return null;
+      // DPI and polling must be present, otherwise the config falls back to
+      // catalogue defaults and shows values the mouse does not have.
+      if (info.cpi == null && info.polling == null) return null;
+      return info;
     }
 
     /* Last-resort handshake parser: some firmware revisions send the query
@@ -620,6 +692,7 @@ const RAWM = (() => {
       this.queryRetry = null;
       this.queryText = '';
       this.infoText = '';
+      this.stream = '';
       // The stream still holds the query answer as text; drop it so the scanner
       // cannot mistake JSON bytes for frames later.
       if (!this.info) this.buffer = new Uint8Array(0);
@@ -640,7 +713,8 @@ const RAWM = (() => {
       }
       this.info = info;
       this.crc = info.crc === 1;
-      this.log('rx', `device info${how ? ' (' + how + ')' : ''} ` + JSON.stringify(info).slice(0, 400));
+      const took = this.queryAt ? ` · +${Date.now() - this.queryAt} ms` : '';
+      this.log('rx', `device info${how ? ' (' + how + ')' : ''}${took} ` + JSON.stringify(info).slice(0, 400));
       this.emit('info', info);
     }
 
@@ -684,6 +758,7 @@ const RAWM = (() => {
         if (type === NOTIFY.CPI && value.length >= 4) notify.cpi = (value[0] | (value[1] << 8) | (value[2] << 16) | (value[3] << 24)) >>> 0;
         if (type === NOTIFY.POLLING && value.length >= 2) notify.polling = value[0] | (value[1] << 8);
         if (type === NOTIFY.BATTERY) notify.battery = value[0];
+        if (type === NOTIFY.BATTERY && value.length >= 2) notify.chg = value[1];
         if (type === NOTIFY.RSSI) notify.rssi = value[0];
         if (type === NOTIFY.ONBOARD_INDEX) notify.onboard = value[0];
         this.log('rx', `notify 0x${type.toString(16)} ${hex(value, 16)}`);

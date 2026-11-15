@@ -10,9 +10,12 @@
     { id: 'vi', label: 'Tiếng Việt' },
     { id: 'zh', label: '中文' },
     { id: 'ja', label: '日本語' },
-    { id: 'th', label: 'ไทย' },
     { id: 'ko', label: '한국어' },
+    { id: 'th', label: 'ไทย' },
     { id: 'es', label: 'Español' },
+    { id: 'fr', label: 'Français' },
+    { id: 'de', label: 'Deutsch' },
+    { id: 'ru', label: 'Русский' },
   ];
 
   const LOCALES = __LOCALES__;
@@ -43,6 +46,9 @@
     if (low.startsWith('th')) return 'th';
     if (low.startsWith('ko')) return 'ko';
     if (low.startsWith('es')) return 'es';
+    if (low.startsWith('fr')) return 'fr';
+    if (low.startsWith('de')) return 'de';
+    if (low.startsWith('ru')) return 'ru';
     return 'en';
   }
 

@@ -272,6 +272,11 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr); gap: 14px; align-items: start; }
+/* Equal-height pair: the shorter card stretches, its rows share the height. */
+.split-even { align-items: stretch; }
+.card.stretch { display: flex; flex-direction: column; }
+.card.stretch > .card-body { flex: 1; display: flex; flex-direction: column; }
+.card.stretch .kv { flex: 1; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .row { display: flex; align-items: center; gap: 10px; }
 .between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -701,6 +706,17 @@ select.input option { background: #141414; color: #e9ebee; }
 .profile-tile .pt-name { font-size: 11.5px; font-weight: 500; margin-top: 5px; }
 .profile-tile .pt-dot { width: 22px; height: 4px; border-radius: 2px; margin-top: 9px; background: var(--pc, #2a3038); }
 .profile-tile.is-active .pt-i { color: var(--accent); }
+
+/* ── Loading skeleton ───────────────────────────────────────────────── */
+.skel-line, .skel-box, .skel-dot {
+  display: block; border-radius: 4px;
+  background: linear-gradient(90deg, #14171c 25%, #1d222a 37%, #14171c 63%);
+  background-size: 400% 100%;
+  animation: skel 1.5s ease-in-out infinite;
+}
+.skel-dot { flex: none; border-radius: 4px; }
+@keyframes skel { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .skel-line, .skel-box, .skel-dot { animation: none; } }
 
 /* ── Misc ───────────────────────────────────────────────────────────── */
 .divider { height: 1px; background: var(--line); margin: 16px 0; }

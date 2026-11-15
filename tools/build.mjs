@@ -59,8 +59,13 @@ const iconMap = {
   external: 'arrow-square-out',
 };
 let iconSprite = '';
+// Icons that read better without the 20%-opacity fill: pulled from the regular
+// (outline) set instead of duotone.
+const OUTLINE_ICONS = new Set(['chevron', 'arrow', 'x']);
 for (const [id, name] of Object.entries(iconMap)) {
-  const svg = read(`node_modules/@phosphor-icons/core/assets/duotone/${name}-duotone.svg`);
+  const svg = OUTLINE_ICONS.has(id)
+    ? read(`node_modules/@phosphor-icons/core/assets/regular/${name}.svg`)
+    : read(`node_modules/@phosphor-icons/core/assets/duotone/${name}-duotone.svg`);
   const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>[\s\S]*$/, '');
   iconSprite += `<symbol id="i-${id}" viewBox="0 0 256 256">${inner}</symbol>`;
 }
@@ -117,7 +122,7 @@ for (const d of catalogue) {
 const logo = dataUri('assets/rawm-hub.png');
 const favicon = dataUri('assets/favicon.ico');
 const flags = {};
-for (const lang of ['en', 'vi', 'zh', 'ja', 'th', 'ko', 'es']) {
+for (const lang of ['en', 'vi', 'zh', 'ja', 'th', 'ko', 'es', 'fr', 'de', 'ru']) {
   try { flags[lang] = dataUri(`assets/flags/${lang}.png`); } catch { /* optional */ }
 }
 const template = templateSrc

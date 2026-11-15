@@ -45,7 +45,7 @@ falls back to the default browser when Chrome is not installed.
 | Firmware | Revision, channel report, vendor hand-off and factory reset. Changing the channel writes it, reboots the device and disconnects, so you connect again manually |
 | About | What the project is, requirements, credits and links to the official RAWM HUB installers, web tool and download center. The page hosts no downloads |
 | Console | Live WebHID packet log (TX/RX), copyable for debugging |
-| Language | English, Vietnamese, Chinese, Japanese, Thai, Korean and Spanish; flag picker in the header, choice saved locally |
+| Language | English, Vietnamese, Chinese, Japanese, Thai, Korean, Spanish, French, German and Russian; flag picker in the header, choice saved locally |
 
 Scope is intentionally limited to this list — no extra pages or controls beyond
 the original hub.
@@ -110,7 +110,7 @@ assets/products/         one local render, used as the loading placeholder
 assets/rawm-hub.png      official logo, bolt recoloured to theme blue
 assets/favicon.ico       favicon (inlined by the build)
 src/i18n.js             translation engine (text/attribute walker, language switch)
-src/locales/*.json      English, Vietnamese, Chinese, Japanese, Thai, Korean, Spanish
+src/locales/*.json      English, Vietnamese, Chinese, Japanese, Thai, Korean, Spanish, French, German, Russian
 assets/flags/           flag renders for the language picker (inlined by the build)
 tools/build.mjs          inlines CSS, JS, JSON, images, icons and favicon
 tools/start.mjs          local server + Chrome launcher
@@ -233,7 +233,7 @@ and `src/app.js` together, or Google will fall back to `chila.io.vn`.
   `index.html`.
 - Phosphor **duotone** icons are emitted as a `<symbol>` sprite.
 - UI text is translated into English, Vietnamese, Chinese, Japanese, Thai,
-  Korean and Spanish. The language picker shows inlined flag renders and the
+  Korean, Spanish, French, German and Russian. The language picker shows inlined flag renders and the
   choice is stored in `localStorage`.
 - Official RAWM HUB logo in the rail, bolt recoloured to the theme blue; product
   renders load from the vendor's `/hub/product/{productId}/{model}/` endpoint.

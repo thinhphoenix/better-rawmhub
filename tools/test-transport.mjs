@@ -99,24 +99,57 @@ let pass = 0;
   else console.error('FAIL receiver mouse info');
 }
 
-// 7. Wired firmware: the info JSON arrives as notify 0x0c chunks inside 0x52
-//    status reports that carry an 18-byte device header before the stream.
+// 8. Wired firmware: a 0x52 status report is [0x52][18-byte header]
+//    [stream bytes][29-byte trailer]; the frame inside must survive both.
 {
   const { t, seen } = makeTransport();
+  const notes = [];
+  t.addEventListener('notify', (e) => notes.push(e.detail));
   const header = [0x15, 0x24, 0, 0, 0x80, 0x0c, 0, 0, 0x08, 0, 0, 0, 0, 0, 0, 0x28, 0, 0];
-  const status = (chunk) => new Uint8Array([0x52, ...header, ...chunk]);
-  const body = enc.encode(JSON.stringify({ ...info, dn: 'LEVIATHAN V4', esb_addr: ['8f56'], kd: [8, 8, 8, 8] }));
-  for (let i = 0; i < body.length; i += 90) {
-    const part = body.subarray(i, i + 90);
-    const payload = new Uint8Array(1 + part.length);
-    payload[0] = RAWM.NOTIFY.INFO;
-    payload.set(part, 1);
-    const f = RAWM.frame(RAWM.CMD.NOTIFY, payload);
-    for (let k = 0; k < f.length; k += 45) t.ingest(status(f.subarray(k, k + 45)));
-  }
-  if (seen.info && seen.info.dn === 'LEVIATHAN V4' && seen.info.battery === 78) pass++;
-  else console.error('FAIL wired status report', { buf: t.buffer.length, json: (t.infoText || '').length });
+  const trailer = [0, 0, 0, 0x70, 0x20, 0, 0x20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x9b, 0x65, 0, 8, 0, 0, 0, 0, 0xbf, 0x42, 0, 8, 0x18];
+  const batteryFrame = RAWM.frame(RAWM.CMD.NOTIFY, new Uint8Array([RAWM.NOTIFY.BATTERY, 78, 1]));
+  t.ingest(new Uint8Array([0x52, ...header, ...batteryFrame, ...trailer]));
+  if (t.buffer.length === 0 && notes.some((n) => n.battery === 78)) pass++;
+  else console.error('FAIL wired status report', { buf: t.buffer.length, notes: notes.length });
 }
 
-console.log(`${pass}/8 transport checks passed`);
-process.exit(pass === 8 ? 0 : 1);
+// 9. Wired retransmits: the same JSON text arrives 34 bytes at a time in 0xa2
+//    reports, each followed by the device trailer, twice over.
+{
+  const { t, seen } = makeTransport();
+  const trailer = [0, 0, 0, 0x70, 0x20, 0, 0x20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x9b, 0x65, 0, 8, 0, 0, 0, 0, 0xbf, 0x42, 0, 8, 0x18];
+  const body = enc.encode(JSON.stringify({
+    r: 'G-1.0.0', rc: 6, dn: 'LEVIATHAN V4', pi: 9034, vi: 6421, battery: 100, chg: 1,
+    cpi: 3200, polling: 1000, light: 66, cpi_l: [400, 800, 1600, 3200, 0, 0, 0, 0], crc: 1,
+  }));
+  for (let copy = 0; copy < 2; copy++) {
+    for (let i = 0; i < body.length; i += 34) {
+      const part = body.subarray(i, i + 34);
+      t.ingest(new Uint8Array([0x80 | part.length, ...part, ...trailer]));
+    }
+  }
+  const got = seen.info;
+  if (got && got.dn === 'LEVIATHAN V4' && got.battery === 100 && got.cpi === 3200) pass++;
+  else console.error('FAIL stream fields', got);
+}
+
+// 10. A half-received answer must not be pinned: DPI and polling only arrive
+//     later in the payload, and accepting early freezes catalogue defaults.
+{
+  const { t, seen } = makeTransport();
+  const send = (bytes) => {
+    for (let i = 0; i < bytes.length; i += 34) {
+      const part = bytes.subarray(i, i + 34);
+      t.ingest(new Uint8Array([0x80 | part.length, ...part]));
+    }
+  };
+  send(enc.encode('{"r":"G-1.0.0","dn":"LEVIATHAN V4","pi":9034'));
+  const early = seen.info;
+  send(enc.encode(',"battery":100,"chg":1,"cpi":1600,"polling":8000,"cpi_l":[400,1600,3200,0,0,0,0,0],"crc":1}'));
+  const got = seen.info;
+  if (!early && got && got.cpi === 1600 && got.polling === 8000 && Array.isArray(got.cpi_l)) pass++;
+  else console.error('FAIL partial answer pinned', { early, got });
+}
+
+console.log(`${pass}/10 transport checks passed`);
+process.exit(pass === 10 ? 0 : 1);
