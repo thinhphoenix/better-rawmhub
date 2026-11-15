@@ -427,6 +427,7 @@
   /* ── Bridge panel (Firefox, Safari) ─────────────────────────────────── */
 
   const BRIDGE_RELEASES = 'https://github.com/thinhphoenix/better-rawmhub/releases/latest';
+  let bridgeRetry = null;
 
   function bridgePlatform() {
     const ua = navigator.userAgent || '';
@@ -435,29 +436,76 @@
     return 'Linux';
   }
 
+  function bridgeDownload() {
+    const platform = bridgePlatform();
+    // The daemon is portable, so Windows gets the .exe directly; the other
+    // platforms ship a small archive with an installer script.
+    if (platform === 'Windows') {
+      return { platform, label: 'Download .exe', url: `${BRIDGE_RELEASES}/download/better-rawmhub-bridge.exe` };
+    }
+    return { platform, label: `Download for ${platform}`, url: BRIDGE_RELEASES };
+  }
+
   function bridgePanel() {
     if (RAWM.Transport.backend !== 'bridge') return '';
     const problem = state.bridgeProblem;
     const port = (window.RAWM_BRIDGE && window.RAWM_BRIDGE.PORT) || 47311;
+    const download = bridgeDownload();
     const headline = problem === 'down'
-      ? 'The bridge is not running.'
+      ? 'The bridge is not running yet.'
       : problem === 'pair'
         ? 'Pair this page with the bridge.'
-        : 'This browser has no WebHID — install the bridge once.';
+        : 'This browser has no WebHID, so the page uses a small local bridge.';
     return `
       <div class="notice${problem ? ' warn' : ''}" style="margin-top:14px">
         ${icon(problem ? 'alert' : 'info')}
         <div>
           <strong>${headline}</strong>
-          <p class="help" style="margin-top:6px">Firefox and Safari reach the device through <span class="mono">better-rawmhub-bridge</span>, a small local daemon on <span class="mono">127.0.0.1:${port}</span>. Start it, then press Connect again. Nothing is installed inside the browser and no account is needed.</p>
+          <p class="help" style="margin-top:6px"><span class="mono">better-rawmhub-bridge</span> runs in the background on <span class="mono">127.0.0.1:${port}</span> and only while you use this page. Install it once; after that the page starts it for you and it goes away a few minutes after the last tab closes.</p>
           <div class="row wrap" style="margin-top:10px">
-            <a class="btn btn-ghost btn-sm" href="${BRIDGE_RELEASES}" target="_blank" rel="noopener">${icon('download')}<span>Download for ${bridgePlatform()}</span></a>
+            <button class="btn btn-primary btn-sm" data-action="bridge-start">${icon('play')}<span>Start the bridge</span></button>
+            <a class="btn btn-ghost btn-sm" href="${download.url}" target="_blank" rel="noopener">${icon('download')}<span>${download.label}</span></a>
             <button class="btn btn-ghost btn-sm" data-action="bridge-retry">${icon('refresh')}<span>Try again</span></button>
-            ${problem === 'pair' ? `<button class="btn btn-primary btn-sm" data-action="bridge-pair-open">${icon('link')}<span>Enter code</span></button>` : ''}
+            ${problem === 'pair' ? `<button class="btn btn-ghost btn-sm" data-action="bridge-pair-open">${icon('link')}<span>Enter code</span></button>` : ''}
             <button class="btn btn-ghost btn-sm" data-action="bridge-forget">${icon('x')}<span>Forget pairing</span></button>
           </div>
+          <p class="help" style="margin-top:8px">Firefox asks once whether to open the bridge — choose Open. Nothing is installed inside the browser and no account is needed.</p>
         </div>
       </div>`;
+  }
+
+  /* betterrawm:// is registered by the installer and maps to the daemon, so a
+     click here is all it takes to launch it. The page then waits for the port
+     to answer and connects on its own. */
+  async function startBridge() {
+    if (!window.RAWM_BRIDGE) return;
+    try { location.href = 'betterrawm://start'; } catch { /* blocked, the download link is next to this button */ }
+    toast('Starting the bridge…', 'info');
+    addLog('info', 'bridge · asking the OS to start better-rawmhub-bridge');
+    clearInterval(bridgeRetry);
+    let tries = 0;
+    bridgeRetry = setInterval(async () => {
+      tries++;
+      if (tries > 12) {
+        clearInterval(bridgeRetry);
+        bridgeRetry = null;
+        addLog('err', 'bridge · no answer after 8s — is better-rawmhub-bridge installed?');
+        return;
+      }
+      let alive = false;
+      try {
+        await window.RAWM_BRIDGE.request();
+        alive = true;
+      } catch (err) {
+        // "pair-required" and "no-device" both mean the daemon answered.
+        alive = !!(err && (err.code === 'pair-required' || err.code === 'no-device'));
+      }
+      if (!alive) return;
+      clearInterval(bridgeRetry);
+      bridgeRetry = null;
+      addLog('info', 'bridge · answered, connecting');
+      connectDevice();
+    }, 700);
   }
 
   function connectView() {
@@ -1846,7 +1894,7 @@
           <button class="icon-btn" data-action="close-modal" aria-label="Close">${icon('x')}</button>
         </div>
         <div class="modal-body">
-          <p class="help">The bridge printed a six-digit code in its window. Type it here once — this browser is remembered after that.</p>
+          <p class="help">The bridge wrote a six-digit code to its log file (<span class="mono">bridge.log</span> next to the config). Type it here once — this browser is remembered after that.</p>
           <input class="input" id="bridge-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"
             style="margin-top:12px;letter-spacing:.35em;font-family:'JetBrains Mono',monospace;font-size:20px;text-align:center" />
           <p class="help" id="bridge-pair-error" style="color:var(--danger);margin-top:8px"></p>
@@ -2279,6 +2327,7 @@
       case 'close-modal': closeModal(); break;
       case 'bridge-pair': pairBridge(); break;
       case 'bridge-pair-open': openBridgePair(); break;
+      case 'bridge-start': startBridge(); break;
       case 'bridge-retry': connectDevice(); break;
       case 'bridge-forget':
         if (window.RAWM_BRIDGE) window.RAWM_BRIDGE.forget();

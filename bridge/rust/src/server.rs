@@ -4,7 +4,7 @@
 
 use crate::config::{config_path, load_config, save_config, Config};
 use crate::hid::{self, Cmd};
-use crate::security::{eq_hex, host_allowed, origin_allowed, sha256_hex, DEFAULT_ORIGINS};
+use crate::security::{eq_hex, host_allowed, needs_pairing, origin_allowed, sha256_hex, DEFAULT_ORIGINS};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ use tungstenite::protocol::{Role, WebSocket};
 use tungstenite::Message;
 
 pub const API: u32 = 1;
-pub const VERSION: &str = "0.1.0";
+pub const VERSION: &str = "0.2.0";
 pub const DEFAULT_PORT: u16 = 47311;
 
 const PAIR_TTL: Duration = Duration::from_secs(600);
@@ -43,7 +43,10 @@ impl Default for Options {
             host: "127.0.0.1".to_string(),
             idle_seconds: 600,
             origins: Vec::new(),
-            pairing: true,
+            // No codes by default: the origin allowlist plus the loopback-only
+            // bind are the gate. `--pair` adds the code back for everything
+            // except the hosted pages.
+            pairing: false,
             report_ids: true,
         }
     }
@@ -68,7 +71,7 @@ struct State {
 
 impl State {
     fn log(&self, line: &str) {
-        println!("  {line}");
+        crate::logfile::line(&format!("  {line}"));
     }
 
     fn touch(&self) {
@@ -93,27 +96,32 @@ pub fn start(options: Options) -> std::io::Result<()> {
     let listener = TcpListener::bind((options.host.as_str(), options.port))?;
     let port = listener.local_addr().map(|addr| addr.port()).unwrap_or(options.port);
 
-    println!();
-    println!("  better-rawmhub-bridge {VERSION}");
-    println!("  ws://{}:{port}/v1/ws", options.host);
-    println!(
+    let say = crate::logfile::line;
+    say("");
+    say(&format!("  better-rawmhub-bridge {VERSION}"));
+    say(&format!("  ws://{}:{port}/v1/ws", options.host));
+    say(&format!(
         "  origins: {}{}",
         DEFAULT_ORIGINS.join(", "),
         if options.origins.is_empty() { String::new() } else { format!(" + {}", options.origins.join(", ")) }
-    );
-    println!("  origins on localhost are allowed too - devices: vendor 0x1915 only");
-    println!(
+    ));
+    say("  origins on localhost are allowed too - devices: vendor 0x1915 only");
+    say(&format!(
         "  pairing: {} - idle exit: {}",
-        if options.pairing { "on" } else { "off" },
+        if options.pairing {
+            "on (hosted pages still free)"
+        } else {
+            "off - origin allowlist only"
+        },
         if options.idle_seconds == 0 {
             "never".to_string()
         } else {
             format!("{}s after the last page closes", options.idle_seconds)
         }
-    );
-    println!("  config: {}", config_path().display());
-    println!("  close this window to stop the bridge");
-    println!();
+    ));
+    say(&format!("  config: {}", config_path().display()));
+    say("  stop it from the Start-menu shortcut, or run with --stop");
+    say("");
 
     let state = Arc::new(State {
         options: options.clone(),
@@ -140,10 +148,10 @@ pub fn start(options: Options) -> std::io::Result<()> {
                     .map(|last| last.elapsed())
                     .unwrap_or_default();
                 if quiet_for >= Duration::from_secs(idle_state.options.idle_seconds) {
-                    println!(
+                    crate::logfile::line(&format!(
                         "  idle for {}s - exiting (start it again from the page, or run with --idle=0)",
                         idle_state.options.idle_seconds
-                    );
+                    ));
                     std::process::exit(0);
                 }
             }
@@ -159,7 +167,7 @@ pub fn start(options: Options) -> std::io::Result<()> {
                 });
             }
             Err(err) => {
-                eprintln!("accept failed: {err}");
+                crate::logfile::line(&format!("  accept failed: {err}"));
             }
         }
     }
@@ -218,6 +226,29 @@ fn serve(mut stream: TcpStream, state: Arc<State>) -> std::io::Result<()> {
     let host = headers.get("host").cloned().unwrap_or_default();
     let origin = headers.get("origin").cloned().unwrap_or_default();
     let key = headers.get("sec-websocket-key").cloned().unwrap_or_default();
+
+    // Local shutdown, used by the Start-menu shortcut and `--stop`. The custom
+    // header keeps pages out: a browser only sends custom headers after a
+    // preflight, and this server never answers one.
+    if path.starts_with("/v1/quit") {
+        let allowed = headers.get("x-bridge-local").map(|value| value == "1").unwrap_or(false);
+        if !allowed {
+            return refuse(&mut stream, 403, "Forbidden");
+        }
+        let body = "stopping\n";
+        let head = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let _ = stream.write_all(head.as_bytes());
+        let _ = stream.flush();
+        state.log("stop requested");
+        thread::spawn(|| {
+            thread::sleep(Duration::from_millis(120));
+            std::process::exit(0);
+        });
+        return Ok(());
+    }
 
     if !path_ok {
         return refuse(&mut stream, 404, "Not Found");
@@ -306,6 +337,9 @@ fn fail(out: &Sender<Message>, seq: &Option<Value>, code: &str, message: &str) {
 
 fn token_ok(state: &State, origin: &str, token: Option<&str>) -> bool {
     if !state.options.pairing {
+        return true;
+    }
+    if !needs_pairing(origin) {
         return true;
     }
     let config = match state.config.lock() {

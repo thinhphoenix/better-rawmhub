@@ -49,6 +49,13 @@ pub fn origin_allowed(origin: &str, extra: &[String]) -> bool {
     extra.iter().any(|allowed| allowed == "*" || allowed == origin)
 }
 
+/// Whether this origin still needs the six-digit code. Only enabled with
+/// `--pair`; even then the hosted pages are ours, so they stay free. A hostile
+/// site cannot forge their Origin header and the Host check blocks rebinding.
+pub fn needs_pairing(origin: &str) -> bool {
+    !DEFAULT_ORIGINS.contains(&origin)
+}
+
 /// Blocks DNS rebinding: a hostile name that resolves to 127.0.0.1 still
 /// carries its own name in the Host header.
 pub fn host_allowed(host: &str) -> bool {
@@ -120,5 +127,14 @@ mod tests {
         assert_eq!(hash.len(), 64);
         assert!(eq_hex(&hash, &sha256_hex("abc")));
         assert!(!eq_hex(&hash, &sha256_hex("abd")));
+    }
+
+    #[test]
+    fn pairing_scope() {
+        assert!(!needs_pairing("https://better-rawmhub.chila.io.vn"));
+        assert!(!needs_pairing("https://better-rawmhub.pages.dev"));
+        assert!(needs_pairing("http://localhost:8080"));
+        assert!(needs_pairing("http://192.168.1.20:8080"));
+        assert!(needs_pairing("https://rawm.example"));
     }
 }

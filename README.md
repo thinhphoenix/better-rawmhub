@@ -112,9 +112,12 @@ Firefox / Safari ──ws://127.0.0.1:47311──▶ better-rawmhub-bridge ─�
   cross-checks. It needs `node-hid`, so it is not what users download.
 - The page picks the transport by itself: `navigator.hid` when the browser has
   it, the bridge otherwise. Nothing in the device protocol changes.
-- The daemon binds loopback only, allowlists the page origin, and asks for a
-  six-digit pairing code once per origin. It only ever lists vendor `0x1915`
-  devices. Details and the wire protocol: [`bridge/README.md`](bridge/README.md).
+- The daemon binds loopback only and allowlists the page origin, so there is no
+  pairing step: the page starts it with one click (`betterrawm://start` on
+  Windows), uses it, and it exits ten minutes after the last tab closes. It only
+  ever lists vendor `0x1915` devices, and `--pair` can add a code back for
+  origins outside the hosted pages. Details and the wire protocol:
+  [`bridge/README.md`](bridge/README.md).
 
 Install, options and troubleshooting live in that file. Quick start:
 

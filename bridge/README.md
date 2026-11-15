@@ -25,14 +25,27 @@ Firefox / Safari ──ws://127.0.0.1:47311──▶ better-rawmhub-bridge ─�
 
 ### Windows
 
-1. Download `better-rawmhub-bridge-win-x64.zip` from the releases page.
-2. Unzip anywhere and run `install.ps1` (right-click → *Run with PowerShell*).
-3. The binary lands in `%LOCALAPPDATA%\BetterRawmHubBridge\`, with a Start-menu
-   shortcut. Pass `-AutoStart` if you want it to start with Windows.
+1. Download `better-rawmhub-bridge.exe` from the releases page (or the zip, which
+   adds the same installer).
+2. Run it. Windows warns that the publisher is unknown because the build is not
+   signed: **More info** → **Run anyway**.
+3. That is all. The page starts the daemon itself from now on.
 
-The build is not code-signed, so the first run shows *Windows protected your PC*
-→ **More info** → **Run anyway**. If Defender quarantines it, add the folder to
-exclusions.
+For a Start-menu entry, the `betterrawm://` handler and an optional login entry,
+run `install.ps1` from the zip (right-click → *Run with PowerShell*). It does
+not need administrator rights:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+- copies the binary to `%LOCALAPPDATA%\BetterRawmHubBridge\`
+- adds **Better RAWM Hub Bridge** and **Stop Better RAWM Hub Bridge** shortcuts
+- registers `betterrawm://start`, which is how the page launches it
+- starts it now; add `-AutoStart` to also start it at login
+
+Logs go to `%LOCALAPPDATA%\BetterRawmHubBridge\bridge.log`. If Defender
+quarantines the binary, add that folder to the exclusions.
 
 ### macOS
 
@@ -40,11 +53,14 @@ exclusions.
 2. Unzip, then right-click `install.command` → **Open** (a double-click on an
    unsigned script is refused).
 3. It copies the binary to `~/Library/Application Support/BetterRawmHubBridge/`,
-   removes the quarantine flag and prints how to start it.
+   removes the quarantine flag, installs a LaunchAgent so it is available at
+   login, and starts it.
 
-Unnotarised binaries need **System Settings → Privacy & Security → Open Anyway**
-the first time. If macOS asks for **Input Monitoring**, grant it — otherwise the
-HID handle cannot be opened.
+macOS has no way to register a URL scheme for a bare binary, so the LaunchAgent
+is how the daemon is there when the page asks. Unnotarised binaries need
+**System Settings → Privacy & Security → Open Anyway** the first time. If macOS
+asks for **Input Monitoring**, grant it — otherwise the HID handle cannot be
+opened.
 
 ### Linux
 
@@ -56,14 +72,20 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ## Using it
 
-1. Start the daemon (double-click, or `better-rawmhub-bridge`).
-2. Open <https://better-rawmhub.chila.io.vn> in Firefox or Safari.
-3. Press **Connect device**. The first time, the daemon prints a six-digit code
-   in its window; type it into the page. That origin is remembered.
+1. Open <https://better-rawmhub.chila.io.vn> in Firefox or Safari.
+2. Press **Connect device**. If the daemon is not running, the page offers
+   **Start the bridge**; one click launches it and the page connects by itself.
+3. **There is no code to type.** The daemon trusts its origin allowlist and
+   starts serving. `--pair` adds the six-digit code back for origins outside the
+   hosted pages.
 
 Firefox 154+ shows a **local network** permission prompt the first time the page
 reaches `127.0.0.1`. Choose **Allow**. If it was denied, open the site settings
 for the page and allow local network access, then press **Try again**.
+
+The daemon exits ten minutes after the last tab closes, so nothing keeps running
+in the background unless you install it with `-AutoStart` (Windows) or the
+LaunchAgent (macOS).
 
 ## Options
 
@@ -71,13 +93,11 @@ for the page and allow local network access, then press **Try again**.
 --port=<n>          loopback port (default 47311)
 --idle=<seconds>    exit after this long with no page open (default 600, 0 = never)
 --origin=<url>      extra allowed origin, repeatable (or --origin=* for any)
---no-pair           skip the pairing code (local development only)
+--pair              require the six-digit code for non-hosted origins (off by default)
 --no-report-ids     do not prefix writes with the report id (rare interfaces)
 --host=<address>    bind address (default 127.0.0.1 — do not change this)
+--stop              stop a bridge that is already running, then exit
 ```
-
-The daemon exits on its own ten minutes after the last page closes, so it does
-not sit in the background forever. Run it with `--idle=0` to keep it up.
 
 ## Security
 
@@ -88,9 +108,10 @@ The daemon is a door into your USB devices, so it is deliberately narrow:
   rebinding);
 - checks `Origin` against an allowlist: the two hosted pages plus anything on
   `http://localhost` / `http://127.0.0.1`. `null` (a `file://` page or a
-  sandboxed frame) is refused;
-- requires a six-digit pairing code once per origin, then a 24-byte token. Only
-  the SHA-256 of the token is stored, in
+  sandboxed frame) is refused. A remote site cannot forge these headers, which
+  is why no pairing code is needed day to day;
+- optional pairing (`--pair`): a six-digit code once per non-hosted origin, then
+  a 24-byte token. Only the SHA-256 of the token is stored, in
   `%LOCALAPPDATA%\BetterRawmHubBridge\config.json`
   (`~/Library/Application Support/BetterRawmHubBridge/config.json` on macOS);
 - only ever lists devices on vendor `0x1915`, and opens one device per connection.
@@ -146,7 +167,7 @@ same QUERY packet the page sends and reports how many input reports came back.
 | Symptom | Cause |
 | --- | --- |
 | *Bridge not running* in the page | the daemon is not started, or something else holds port 47311 (`netstat -ano \| findstr 47311`) |
-| *Pair this page with the bridge* | first visit from this origin, or **Forget pairing** was pressed |
+| *Pair this page with the bridge* | only with `--pair`, and only for non-hosted origins |
 | The page says it cannot reach localhost | Firefox denied the local-network prompt, or the page is on `file://` |
 | Device is listed but does not answer | another tool (vendor hub, another tab) holds the interface; close it |
 | macOS: device opens then fails | grant **Input Monitoring** to the binary |
