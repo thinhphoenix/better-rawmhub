@@ -107,6 +107,7 @@ assets/products/         one local render, used as the loading placeholder
 assets/rawm-hub.png      official logo, bolt recoloured to theme blue
 assets/favicon.ico       favicon (inlined by the build)
 src/i18n.js             translation engine (text/attribute walker, language switch)
+src/ascii-bg.js         drift field: ASCII background canvas (24 fps, pauses when hidden)
 src/locales/*.json      English, Vietnamese, Chinese, Japanese, Thai, Korean, Spanish
 assets/flags/           flag renders for the language picker (inlined by the build)
 tools/build.mjs          inlines CSS, JS, JSON, images, icons and favicon
@@ -229,6 +230,12 @@ and `src/app.js` together, or Google will fall back to `chila.io.vn`.
   Segmented) mounted over the custom layout; React and antd are bundled into
   `index.html`.
 - Phosphor **duotone** icons are emitted as a `<symbol>` sprite.
+- Behind the shell: a slow ASCII field (the *drift* look from
+  [asciify-engine](https://github.com/ayangabryl/asciify-engine), MIT). Glyphs
+  sit on a 13 px grid over a two-octave value-noise field, sampled on a coarse
+  grid and interpolated, drawn with a short trail at 24 fps. Opaque cards and
+  the rail hide it where text lives; it stops when the tab is hidden and renders
+  one static frame under `prefers-reduced-motion`.
 - UI text is translated into English, Vietnamese, Chinese, Japanese, Thai,
   Korean and Spanish. The language picker shows inlined flag renders and the
   choice is stored in `localStorage`.
