@@ -11,7 +11,6 @@ const read = (p) => readFileSync(resolve(root, p), 'utf8');
 const templateSrc = read('src/template.html');
 const css = read('src/styles.css');
 const hid = read('src/hid.js');
-const asciiBg = read('src/ascii-bg.js');
 const app = read('src/app.js');
 const antLib = read('assets/ant.js');
 const antControls = read('src/ant-controls.js');
@@ -135,7 +134,6 @@ const out = template
   .replace('__ICON_SPRITE__', () => iconSprite)
   .replace('__ANT_LIB__', () => antLib)
   .replace('__HID__', () => hid.trim())
-  .replace('__ASCII_BG__', () => asciiBg.trim())
   .replace('__I18N__', () => i18n.trim().replace('__LOCALES__', () => JSON.stringify(locales)))
   .replace('__APP__', () => app.trim().split('__PLACEHOLDER_IMG__').join(placeholderImg))
   .replace('__ANT_CONTROLS__', () => antControls.trim().replace('__FLAGS__', () => JSON.stringify(flags)));
