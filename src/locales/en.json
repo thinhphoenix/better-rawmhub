@@ -235,5 +235,17 @@
   "This is an unofficial community rebuild, not affiliated with or endorsed by RAWM. RAWM, RAWM HUB and the device renders belong to RAWM / Shenzhen Renmo Electronic Technology; product images and the device catalogue are loaded from the vendor's CDN.": "This is an unofficial community rebuild, not affiliated with or endorsed by RAWM. RAWM, RAWM HUB and the device renders belong to RAWM / Shenzhen Renmo Electronic Technology; product images and the device catalogue are loaded from the vendor's CDN.",
   "Vendor": "Vendor",
   "Source": "Source",
-  "App version": "App version"
+  "App version": "App version",
+  "Linux permissions": "Linux permissions",
+  "Linux needs a udev rule": "Linux needs a udev rule",
+  "Why Chrome and Edge cannot open hidraw without a udev rule": "Why Chrome and Edge cannot open hidraw without a udev rule",
+  "Download rule": "Download rule",
+  "Copy commands": "Copy commands",
+  "Retry": "Retry",
+  "Rule downloaded — copy it into /etc/udev/rules.d/": "Rule downloaded — copy it into /etc/udev/rules.d/",
+  "Commands copied — run them in a terminal": "Commands copied — run them in a terminal",
+  "Permission was blocked by the browser": "Permission was blocked by the browser",
+  "No RAWM device found — check 2.4 GHz mode or the cable": "No RAWM device found — check 2.4 GHz mode or the cable",
+  "The device refused to open — close other software using it, then retry": "The device refused to open — close other software using it, then retry",
+  "macOS blocked the device — allow Input Monitoring for this browser, then retry": "macOS blocked the device — allow Input Monitoring for this browser, then retry"
 }

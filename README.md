@@ -31,6 +31,11 @@ Open <http://localhost:8080>. Use **Chrome or Edge** on desktop, or **Firefox an
 Safari** with the [bridge](bridge/README.md) running — WebHID itself is not
 available in either of them.
 
+On Linux, Chrome and Edge fail with `NotAllowedError` until a udev rule grants
+your user access to the hidraw node. The app detects that case, generates the
+exact rule for the selected device and shows the commands; the full explanation
+is in [docs/linux.md](docs/linux.md).
+
 `npm start -- --no-open` keeps the server running without opening a window, and
 falls back to the default browser when Chrome is not installed.
 
@@ -151,6 +156,9 @@ tools/start.mjs          local server + Chrome launcher
 tools/release.mjs        bump patch, build, deploy, commit, push
 tools/test-transport.mjs framing, CRC and receiver-routing tests
 tools/test-bridge.mjs    bridge adapter, report-id shape and transport-selection tests
+tools/test-hid-errors.mjs  HID error classification and Linux udev rule generation
+docs/linux.md            Linux hidraw permissions, udev rules and troubleshooting
+bridge/install.sh        Linux installer for the bridge (udev rule + optional service)
 tools/recolor-logo.mjs   recolours the logo bolt to #3b82f6
 tools/fetch-products.mjs downloads per-model renders into assets/products/
 bridge/rust/             the shipped bridge daemon (Rust + hidapi)

@@ -53,6 +53,76 @@ const RAWM = (() => {
     },
   };
 
+  /* ── Error classification ─────────────────────────────────────────────
+     Chrome reports an OS permission problem and a browser permission
+     problem with the same NotAllowedError, so the cause is decided from
+     the stage (request or open) plus the platform, never from the message
+     text. Pure: the app branches on `kind`, the console prints the real
+     error, and the Node tests cover every branch. */
+  const PLATFORMS = new Set(['linux', 'macos', 'windows', 'other']);
+
+  function classifyHidError(err, context = {}) {
+    const name = err && err.name ? String(err.name) : '';
+    const message = err && err.message ? String(err.message) : String(err == null ? '' : err);
+    const stage = context.stage === 'request' ? 'request' : 'open';
+    const protocol = context.protocol === 'bridge' ? 'bridge' : 'webhid';
+    const platform = PLATFORMS.has(context.platform) ? context.platform : 'other';
+    const fileProtocol = !!context.fileProtocol;
+    const code = err && typeof err.code === 'string' ? err.code : '';
+    const base = { kind: 'unknown', name, message, stage, protocol, platform, fileProtocol, code };
+    const kindOf = (kind) => ({ ...base, kind });
+
+    // Bridge errors carry their own code and are never OS permissions.
+    if (code === 'pair-required') return kindOf('bridge-pair');
+    if (code === 'no-daemon') return kindOf('bridge-down');
+    if (code === 'no-device') return kindOf('bridge-no-device');
+    if (code === 'device-busy') return kindOf('device-busy');
+
+    if (name === 'NotFoundError' && stage === 'request') return kindOf('no-device-selected');
+    // A file:// page has no secure context, so nothing below it is meaningful.
+    if (fileProtocol) return kindOf('file-protocol');
+    if (name === 'SecurityError') return kindOf('browser-permission');
+    if (name === 'InvalidStateError' && stage === 'open') return kindOf('device-busy');
+
+    if (name === 'NotAllowedError') {
+      if (stage === 'request') return kindOf('browser-permission');
+      if (protocol === 'webhid' && platform === 'linux') return kindOf('linux-permission');
+      if (protocol === 'webhid' && platform === 'macos') return kindOf('macos-permission');
+      return kindOf('open-failed');
+    }
+    return kindOf('unknown');
+  }
+
+  /* ── Linux udev helpers ───────────────────────────────────────────────
+     hidraw nodes are owned by root; logind only grants the desktop user an
+     ACL when a udev rule tagged uaccess matches. The rule stays scoped to
+     this vendor (and product when known) and keeps the 70- prefix so it is
+     read before 73-seat-late.rules applies the ACL. */
+  function hex4(value) {
+    return Number(value).toString(16).padStart(4, '0');
+  }
+
+  function udevRule(options = {}) {
+    const vendorId = options.vendorId == null ? VENDOR_ID : Number(options.vendorId);
+    const productId = options.productId == null || !Number(options.productId) ? null : Number(options.productId);
+    const parts = ['SUBSYSTEM=="hidraw"', `ATTRS{idVendor}=="${hex4(vendorId)}"`];
+    if (productId) parts.push(`ATTRS{idProduct}=="${hex4(productId)}"`);
+    parts.push('TAG+="uaccess"');
+    return parts.join(', ');
+  }
+
+  function udevInstallScript(options = {}) {
+    const file = options.file || '70-better-rawmhub.rules';
+    return [
+      `sudo tee /etc/udev/rules.d/${file} >/dev/null <<'EOF'`,
+      udevRule(options),
+      'EOF',
+      'sudo udevadm control --reload-rules',
+      'sudo udevadm trigger --subsystem-match=hidraw',
+      'ls -l /dev/hidraw*   # the node now shows a "+" once the ACL is applied',
+    ].join('\n');
+  }
+
   const CMD = {
     QUERY: 0x1,
     QUERY_RESULT: 0x2,
@@ -920,5 +990,20 @@ const RAWM = (() => {
     }
   }
 
-  return { VENDOR_ID, CMD, CFG, ACTION, NOTIFY, LED, HID, Transport, crc16, frame, hex };
+  return {
+    VENDOR_ID,
+    CMD,
+    CFG,
+    ACTION,
+    NOTIFY,
+    LED,
+    HID,
+    Transport,
+    classifyHidError,
+    udevRule,
+    udevInstallScript,
+    crc16,
+    frame,
+    hex,
+  };
 })();

@@ -807,6 +807,12 @@ select.input option { background: #141414; color: #e9ebee; }
 .log .err { color: var(--danger); }
 .log .time { color: #4a515b; }
 .modal .log { min-height: 260px; }
+.code-block {
+  margin: 8px 0 0; padding: 10px 12px;
+  background: #08090b; border: 1px solid var(--line); border-radius: 4px;
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.7; color: #c8d0da;
+  overflow-x: auto; white-space: pre;
+}
 
 /* ── Animations ─────────────────────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }

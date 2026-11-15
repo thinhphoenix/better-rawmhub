@@ -126,6 +126,7 @@
     busy: false,
     fwSwitching: false,
     bridgeProblem: null,
+    linuxPerm: null,
   };
 
   const transport = new RAWM.Transport((dir, msg) => addLog(dir, msg));
@@ -207,6 +208,22 @@
   };
   const MOUSE_FN = { M1: 'Left click', M2: 'Right click', M3: 'Middle click', M4: 'Back', M5: 'Forward', M6: 'DPI cycle', M7: 'Onboard profile' };
   const REPO_URL = 'https://github.com/thinhphoenix/better-rawmhub';
+  const DOCS_LINUX = `${REPO_URL}/blob/main/docs/linux.md`;
+
+  /* Which OS the browser runs on. The HID error classifier needs this: the
+     same NotAllowedError means "udev rule missing" on Linux and "allow Input
+     Monitoring" on macOS. */
+  function detectPlatform() {
+    const ua = String((typeof navigator !== 'undefined' && navigator.userAgent) || '').toLowerCase();
+    if (/android|iphone|ipad|ipod/.test(ua)) return 'other';
+    if (/linux|x11|cros/.test(ua)) return 'linux';
+    if (/mac os x|macintosh/.test(ua)) return 'macos';
+    if (/windows/.test(ua)) return 'windows';
+    return 'other';
+  }
+
+  const hex4 = (value) => Number(value).toString(16).padStart(4, '0');
+
   /* Vendor pages: installers, firmware and the original web tool live here. */
   const VENDOR_HUB = 'https://www.rawmtech.com/hub3.html';
   const VENDOR_WEB = 'https://www.rawmtech.com/hub.html';
@@ -1445,6 +1462,16 @@
     </div>
 
     <section class="card" style="margin-top:14px">
+      <div class="card-head"><div class="ch-title">${icon('terminal')}<div><h2>Linux permissions</h2><p>Why Chrome and Edge cannot open hidraw without a udev rule</p></div></div><span class="pill">LINUX</span></div>
+      <div class="card-body">
+        <p class="help">On Linux the browser can list a RAWM device but every <span class="mono">open()</span> fails with <span class="mono">NotAllowedError</span>: <span class="mono">/dev/hidraw*</span> is owned by <span class="mono">root</span>, and logind only grants your user access when a udev rule tags the device with <span class="mono">uaccess</span>. Arch-based distributions such as CachyOS only tag specific device classes, so a vendor HID interface like this one is left out.</p>
+        <p class="help" style="margin-top:10px">The fix is one scoped rule — no root browser, no sandbox change, no <span class="mono">chmod 666</span>:</p>
+        <pre class="code-block">SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915", TAG+="uaccess"</pre>
+        <p class="help" style="margin-top:10px">Install it into <span class="mono">/etc/udev/rules.d/70-better-rawmhub.rules</span>, then run <span class="mono">sudo udevadm control --reload-rules</span> and <span class="mono">sudo udevadm trigger --subsystem-match=hidraw</span>. When a connection fails on Linux this page shows the exact rule for the selected device, with copy and download buttons. Step-by-step notes: <a href="${DOCS_LINUX}" target="_blank" rel="noopener">docs/linux.md</a>.</p>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:14px">
       <div class="card-head"><div class="ch-title">${icon('globe')}<div><h2>Credits &amp; disclaimer</h2><p>Unofficial project, not affiliated with RAWM</p></div></div><span class="pill">v${esc(version)}</span></div>
       <div class="card-body">
         <p class="help">Supported controls include DPI stages with per-stage colours, polling rate, lift-off distance, angle tuning, ripple control, motion sync, glass mode, lighting modes and brightness, button remapping, advanced keys and macros for every device in the vendor catalogue.</p>
@@ -1666,6 +1693,16 @@
   async function connectDevice() {
     if (state.busy) return;
     state.busy = true;
+    state.linuxPerm = null;
+    // The classifier needs to know which half failed: requestDevice() is a
+    // browser permission prompt, open() is the OS handing over the node.
+    const context = {
+      stage: 'request',
+      protocol: RAWM.Transport.native ? 'webhid' : 'bridge',
+      platform: detectPlatform(),
+      fileProtocol: location.protocol === 'file:',
+    };
+    let chosen = null;
     try {
       const picked = await RAWM.Transport.request();
       if (!picked.length) { state.busy = false; return; }
@@ -1679,6 +1716,7 @@
         ? picked[0]
         : pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
       const hid = writable || picked[0];
+      chosen = hid;
       addLog('info', `HID candidates: ${pool.map((d) => `${d.productName || 'device'} (${(d.collections || []).length} collections)`).join(' · ')}`);
       const known = byProduct(pid);
       const profile = known ? { ...known } : {
@@ -1700,6 +1738,7 @@
       state.dirty = false;
       state.cfg = makeConfig(profile, null);
       state.selectedKey = profile.keyboard ? 'A' : (profile.keys && profile.keys[0] ? profile.keys[0].name : null);
+      context.stage = 'open';
       await transport.connect(hid, profile);
       addLog('info', `product ${pid} — ${profile.title}${known ? '' : ' (unknown, generic profile)'}${profile.receiver ? ' · receiver' : ''}`);
       go('device');
@@ -1709,38 +1748,92 @@
       state.handshake = 'idle';
       state.profile = null;
       state.cfg = null;
-      if (err && err.name === 'NotFoundError') {
+      const info = RAWM.classifyHidError(err, {
+        ...context,
+        productId: chosen ? Number(chosen.productId) : null,
+      });
+      handleConnectError(info, chosen);
+    } finally {
+      state.busy = false;
+      render();
+    }
+  }
+
+  /* One place that turns a classified HID error into UI. Bridge, file:// and
+     browser-permission behaviour is unchanged; the Linux and macOS kinds add
+     the platform hint the generic toast could not give. */
+  function handleConnectError(info, device) {
+    const label = device ? (device.productName || 'RAWM device') : 'RAWM device';
+    switch (info.kind) {
+      case 'no-device-selected':
         toast('No device selected', 'err');
-      } else if (err && err.code === 'pair-required') {
+        break;
+
+      case 'linux-permission': {
+        const vendorId = device && device.vendorId ? Number(device.vendorId) : RAWM.VENDOR_ID;
+        const productId = info.productId || (device && Number(device.productId)) || null;
+        state.linuxPerm = {
+          vendorId,
+          productId,
+          productName: label,
+          rule: RAWM.udevRule({ vendorId, productId }),
+          script: RAWM.udevInstallScript({ vendorId, productId }),
+          error: { name: info.name, message: info.message },
+        };
+        addLog('err', `${info.name}: ${info.message} · VID 0x${hex4(vendorId)}${productId ? ` PID 0x${hex4(productId)}` : ''} · Linux hidraw permission — the udev uaccess rule is missing (${DOCS_LINUX})`);
+        openLinuxPermission();
+        break;
+      }
+
+      case 'macos-permission':
+        toast('macOS blocked the device — allow Input Monitoring for this browser, then retry', 'err');
+        addLog('err', `${info.name}: ${info.message} · macOS permission — System Settings → Privacy & Security → Input Monitoring`);
+        break;
+
+      case 'browser-permission':
+        toast('Permission was blocked by the browser', 'err');
+        addLog('err', `${info.name}: ${info.message}`);
+        break;
+
+      case 'bridge-pair':
         state.bridgeProblem = 'pair';
         addLog('err', 'bridge: this page is not paired yet');
         openBridgePair();
-      } else if (err && err.code === 'no-daemon') {
+        break;
+
+      case 'bridge-down':
         state.bridgeProblem = 'down';
         if (location.protocol === 'file:') {
           toast('Serve this page over http(s) — a file:// page cannot reach the bridge', 'err');
         } else {
           toast('Bridge not running — start better-rawmhub-bridge, then try again', 'err');
         }
-        addLog('err', `bridge unavailable: ${err.message}`);
-      } else if (err && err.code === 'no-device') {
+        addLog('err', `bridge unavailable: ${info.message}`);
+        break;
+
+      case 'bridge-no-device':
         toast('No RAWM device found — check 2.4 GHz mode or the cable', 'err');
-        addLog('err', err.message);
-      } else if (err && err.code === 'device-busy') {
+        addLog('err', info.message);
+        break;
+
+      case 'device-busy':
         toast('Another tab already has this device open', 'err');
-      } else if (err && err.name === 'SecurityError') {
-        toast('Permission was blocked by the browser', 'err');
-        addLog('err', err.message);
-      } else if (location.protocol === 'file:') {
+        break;
+
+      case 'file-protocol':
         toast('The device needs localhost or https:// — serve the folder first', 'err');
         addLog('err', 'file:// origin cannot reach the device; run python -m http.server 8080');
-      } else {
-        toast(err.message || 'Could not open device', 'err');
-        addLog('err', String((err && err.message) || err));
-      }
-    } finally {
-      state.busy = false;
-      render();
+        break;
+
+      case 'open-failed':
+        toast('The device refused to open — close other software using it, then retry', 'err');
+        addLog('err', `${info.name}: ${info.message}${device ? ` · ${label}` : ''}`);
+        break;
+
+      default:
+        toast(info.message || 'Could not open device', 'err');
+        addLog('err', info.message || String(info.kind));
+        break;
     }
   }
 
@@ -1934,6 +2027,86 @@
       if (error) error.textContent = (err && err.message) || 'Pairing failed.';
       addLog('err', `bridge pairing: ${(err && err.message) || 'failed'}`);
     }
+  }
+
+  /* ── Linux permissions ─────────────────────────────────────────────── */
+
+  /* Clipboard with a fallback for browsers that only allow it behind a
+     permission we may not have on http://localhost. */
+  function copyText(text, okMessage) {
+    const done = () => toast(okMessage || 'Copied', 'ok');
+    const manual = () => {
+      try {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+        done();
+      } catch {
+        toast('Copy failed — select the text and copy it manually', 'err');
+      }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(manual);
+    } else {
+      manual();
+    }
+  }
+
+  function openLinuxPermission() {
+    const detail = state.linuxPerm;
+    if (!detail) return;
+    const ids = `1915:${detail.productId ? hex4(detail.productId) : '----'}`;
+    const root = $('#modal-root');
+    root.innerHTML = `<div class="modal-scrim" data-close="1">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Linux permissions">
+        <div class="modal-head">
+          <div class="row" style="gap:9px">${icon('alert')}<h3>Linux needs a udev rule</h3></div>
+          <button class="icon-btn" data-action="close-modal" aria-label="Close">${icon('x')}</button>
+        </div>
+        <div class="modal-body">
+          <p class="help">The browser can see the device but cannot open it: <span class="mono">${esc(detail.error.name)}</span> — <span class="mono">${esc(detail.error.message)}</span>.</p>
+          <p class="help" style="margin-top:8px">On Linux every <span class="mono">/dev/hidraw*</span> node belongs to <span class="mono">root</span>. logind only grants your desktop user access when a udev rule tags the device with <span class="mono">uaccess</span> — and distributions such as Arch/CachyOS only do that for specific device classes, not for a vendor HID interface like this one.</p>
+          <div class="kv" style="margin-top:12px"><span class="k">Device</span><span class="v">${esc(detail.productName)} · <span class="mono">${ids}</span></span></div>
+          <p class="help" style="margin-top:14px">Rule for this device (stays scoped to vendor 1915${detail.productId ? ' and this product id' : ''}):</p>
+          <pre class="code-block" id="linux-rule">${esc(detail.rule)}</pre>
+          <p class="help" style="margin-top:14px">Install it, reload udev and check the node:</p>
+          <pre class="code-block" id="linux-script">${esc(detail.script)}</pre>
+          <p class="help" style="margin-top:10px">A <span class="mono">+</span> in the <span class="mono">ls -l</span> output means the ACL applied. Unplug and replug the receiver if the browser still refuses, then press Retry. Full notes: <a href="${DOCS_LINUX}" target="_blank" rel="noopener">docs/linux.md</a>.</p>
+          <div class="notice" style="margin-top:12px">${icon('info')}<span>Do not run the browser as root, disable its sandbox or make hidraw world-writable. The rule above is all that is needed, and it applies to your user only.</span></div>
+        </div>
+        <div class="modal-foot">
+          <span class="help">rule 70-better-rawmhub.rules</span>
+          <div class="row">
+            <button class="btn btn-ghost btn-sm" data-action="linux-perm-download">${icon('download')}<span>Download rule</span></button>
+            <button class="btn btn-ghost btn-sm" data-action="linux-perm-copy">${icon('copy')}<span>Copy commands</span></button>
+            <button class="btn btn-primary btn-sm" data-action="linux-perm-retry">${icon('refresh')}<span>Retry</span></button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    if (window.RAWM_I18N) window.RAWM_I18N.apply(root);
+    if (window.__antMount) window.__antMount(root);
+  }
+
+  function downloadLinuxRule() {
+    const detail = state.linuxPerm;
+    if (!detail) return;
+    const blob = new Blob([`${detail.rule}\n`], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '70-better-rawmhub.rules';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Rule downloaded — copy it into /etc/udev/rules.d/', 'ok');
   }
 
   /* ── Toasts ────────────────────────────────────────────────────────── */
@@ -2329,6 +2502,15 @@
       case 'bridge-pair-open': openBridgePair(); break;
       case 'bridge-start': startBridge(); break;
       case 'bridge-retry': connectDevice(); break;
+      case 'linux-perm-copy':
+        if (state.linuxPerm) copyText(state.linuxPerm.script, 'Commands copied — run them in a terminal');
+        break;
+      case 'linux-perm-download': downloadLinuxRule(); break;
+      case 'linux-perm-retry':
+        closeModal();
+        state.linuxPerm = null;
+        connectDevice();
+        break;
       case 'bridge-forget':
         if (window.RAWM_BRIDGE) window.RAWM_BRIDGE.forget();
         state.bridgeProblem = null;

@@ -66,9 +66,21 @@ opened.
 
 ```sh
 sudo cp 70-better-rawmhub.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules && sudo udevadm trigger
+sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
 ./better-rawmhub-bridge
 ```
+
+Or let the script do it, including a systemd `--user` unit if you want it at
+login:
+
+```sh
+./install.sh                 # binary + udev rule
+./install.sh --with-service  # also keep it running at login
+```
+
+`install.sh` prints the commands instead of writing when `/etc` is read-only
+(SteamOS, NixOS). See [../docs/linux.md](../docs/linux.md) for the permission
+model — the web app needs the same `uaccess` rule for Chrome and Edge.
 
 ## Using it
 

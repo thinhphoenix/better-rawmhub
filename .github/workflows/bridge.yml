@@ -70,10 +70,15 @@ jobs:
           cp "bridge/rust/target/${{ matrix.target }}/release/better-rawmhub-bridge" dist/
           cp bridge/install.command dist/
           cp bridge/uninstall.command dist/
+          cp bridge/install.sh dist/
           cp bridge/linux/70-better-rawmhub.rules dist/
+          chmod +x dist/install.sh dist/install.command dist/uninstall.command dist/better-rawmhub-bridge
           tar -czf "better-rawmhub-bridge-${{ matrix.asset }}.tar.gz" -C dist .
           if [ "${{ matrix.asset }}" = "mac-arm64" ] || [ "${{ matrix.asset }}" = "mac-x64" ]; then
             cp bridge/uninstall.command "uninstall-macos.command"
+          fi
+          if [ "${{ matrix.asset }}" = "linux-x64" ]; then
+            cp bridge/install.sh "install-linux.sh"
           fi
 
       - uses: actions/upload-artifact@v4
@@ -85,6 +90,7 @@ jobs:
             better-rawmhub-bridge.exe
             uninstall-windows.ps1
             uninstall-macos.command
+            install-linux.sh
           if-no-files-found: ignore
 
   release:

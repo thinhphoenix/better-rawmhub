@@ -6,7 +6,7 @@
   "scripts": {
     "build:ant": "esbuild tools/ant-entry.js --bundle --minify --format=iife --outfile=assets/ant.js --loader:.js=jsx",
     "build": "npm run build:ant && node tools/build.mjs",
-    "test": "node tools/test-transport.mjs && node tools/test-bridge.mjs",
+    "test": "node tools/test-transport.mjs && node tools/test-hid-errors.mjs && node tools/test-bridge.mjs",
     "test:bridge": "node tools/test-bridge.mjs",
     "bridge": "node bridge/reference/src/index.js",
     "bridge:rust": "cargo run --release --manifest-path bridge/rust/Cargo.toml --",
