@@ -99,5 +99,24 @@ let pass = 0;
   else console.error('FAIL receiver mouse info');
 }
 
-console.log(`${pass}/7 transport checks passed`);
-process.exit(pass === 7 ? 0 : 1);
+// 7. Wired firmware: the info JSON arrives as notify 0x0c chunks inside 0x52
+//    status reports that carry an 18-byte device header before the stream.
+{
+  const { t, seen } = makeTransport();
+  const header = [0x15, 0x24, 0, 0, 0x80, 0x0c, 0, 0, 0x08, 0, 0, 0, 0, 0, 0, 0x28, 0, 0];
+  const status = (chunk) => new Uint8Array([0x52, ...header, ...chunk]);
+  const body = enc.encode(JSON.stringify({ ...info, dn: 'LEVIATHAN V4', esb_addr: ['8f56'], kd: [8, 8, 8, 8] }));
+  for (let i = 0; i < body.length; i += 90) {
+    const part = body.subarray(i, i + 90);
+    const payload = new Uint8Array(1 + part.length);
+    payload[0] = RAWM.NOTIFY.INFO;
+    payload.set(part, 1);
+    const f = RAWM.frame(RAWM.CMD.NOTIFY, payload);
+    for (let k = 0; k < f.length; k += 45) t.ingest(status(f.subarray(k, k + 45)));
+  }
+  if (seen.info && seen.info.dn === 'LEVIATHAN V4' && seen.info.battery === 78) pass++;
+  else console.error('FAIL wired status report', { buf: t.buffer.length, json: (t.infoText || '').length });
+}
+
+console.log(`${pass}/8 transport checks passed`);
+process.exit(pass === 8 ? 0 : 1);

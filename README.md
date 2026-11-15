@@ -85,6 +85,9 @@ The transport was reconstructed from the vendor bundle (`library.min.js`, build
 - CRC-16/CCITT-FALSE wrapping (`CONFIG_TYPE_CRC`) when the device reports `crc: 1`
 - Query-result JSON parsing (revision, battery, CPI, polling, LOD, angle, ripple,
   profiles), plus live notifications
+- Wired firmware: 0x52 status reports carry an 18-byte device header before the
+  byte stream, and the query answer arrives as notify `0x0c` JSON chunks instead
+  of a `QUERY_RESULT` frame — both shapes are parsed
 - Output-report length auto-detection (32/64 bytes) with fallback, and TX
   fragmentation for long config packets
 - HS keyboard firmware handshake (`IQ_GET_SOFT_DRV_VER`) with raw logging

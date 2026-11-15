@@ -5,6 +5,15 @@
    by RAWM receivers and wired mice, plus the HS query handshake used by
    RAWM magnetic keyboards. Everything is logged so a real device can be
    diagnosed from the in-app console.
+
+   Inbound reports, as measured on hardware:
+   · dongle:   [0x80|len][frame bytes]              frame = [cmd|len hi][len lo][payload]
+   · wired:    report id 0x52 carries an 18-byte device header (counter,
+               current CPI, flags) in front of the same byte stream, so the
+               payload starts at byte 19; short reports (0x89/0x91/0xa2) carry
+               the stream directly with the id equal to 0x80|len.
+   · the query answer arrives either as a QUERY_RESULT frame (dongle) or as
+     notify 0x0c JSON chunks (wired) — both are accepted here.
    ───────────────────────────────────────────────────────────────────── */
 
 const RAWM = (() => {
@@ -39,6 +48,7 @@ const RAWM = (() => {
   const NOTIFY = {
     CPI: 0x00,
     POLLING: 0x01,
+    INFO: 0x0c,
     BATTERY: 0x17,
     RSSI: 0x1c,
     GLASS_MODE: 0x21,
@@ -142,6 +152,7 @@ const RAWM = (() => {
       this.hs = !!(profile && profile.soc === 'HS');
       this.info = null;
       this.queryText = '';
+      this.infoText = '';
       this.queryAttempts = 0;
 
       // Pick the actual output report from the descriptor. Receivers and
@@ -265,6 +276,7 @@ const RAWM = (() => {
         if (this.device && !this.info) {
           this.emit('timeout', null);
           this.log('err', 'no query response — check 2.4 GHz mode / USB cable, close other HID software, then retry');
+          this.log('rx', `buffer ${this.buffer.length}B · json ${(this.infoText || '').length}B · tail ${hex(this.buffer.subarray(-96))}`);
         }
       }, 5000);
       const secs = Math.floor(Date.now() / 1000);
@@ -482,11 +494,20 @@ const RAWM = (() => {
       }
       if (off >= data.length) return;
       const head = data[off];
+      if (head === 0x52) {
+        /* Status report. Wired firmware prefixes an 18-byte device header
+           (counter, current CPI, flags) in front of the byte stream, so frames
+           and JSON chunks start at offset 19. Feeding that header back into
+           the scanner corrupted any frame spanning reports — that is what
+           broke the wired handshake. */
+        if (data.length <= off + 19) return;
+        this.feed(data.subarray(off + 19));
+        return;
+      }
+      if (head === 0x40) return; // buffer-size advertisement, no payload
       if ((head & 0xc0) === 0x80) {
         const n = head & 0x3f;
         this.feed(data.subarray(off + 1, off + 1 + n));
-      } else if ((head & 0xc0) === 0x40 && (head & 0x3f) === 0x00) {
-        // Buffer-size advertisement, not an event frame.
       } else {
         // Unknown envelope: let the frame scanner try the whole report.
         this.feed(data.subarray(off));
@@ -505,6 +526,14 @@ const RAWM = (() => {
     drain() {
       let i = 0;
       let parsedAny = false;
+      // While the handshake is open, let an incomplete QUERY_RESULT frame at
+      // the head finish before scanning: the JSON inside it can look like
+      // frames, and a false match would swallow the real answer.
+      if (!this.info && this.buffer.length >= 2) {
+        const headCmd = this.buffer[0] & 0x0f;
+        const headLen = ((this.buffer[0] & 0xf0) << 4) | this.buffer[1];
+        if (headCmd === CMD.QUERY_RESULT && headLen >= 3 && headLen <= 900 && this.buffer.length < headLen) return;
+      }
       while (i + 2 <= this.buffer.length) {
         const cmd = this.buffer[i] & 0x0f;
         const len = ((this.buffer[i] & 0xf0) << 4) | this.buffer[i + 1];
@@ -522,28 +551,97 @@ const RAWM = (() => {
       // Drop leading noise but keep a possible partial frame near the end.
       while (this.buffer.length && this.buffer[0] === 0x00) this.buffer = this.buffer.subarray(1);
       if (this.buffer.length > 4096) this.buffer = this.buffer.subarray(this.buffer.length - 2048);
-      if (!parsedAny && !this.info) this.salvageJson();
+      if (!this.info) {
+        // The JSON accumulator may already hold the whole object even though
+        // notify frames were parsed from the same stream.
+        const streamed = this.infoJson();
+        if (streamed) { this.acceptInfo(streamed, 'json stream'); return; }
+        this.salvageJson();
+      }
     }
 
     /* Last-resort handshake parser: some firmware revisions send the query
-       result as JSON without the 4-byte device header / frame envelope. */
+       result as JSON without the frame envelope. */
     salvageJson() {
       if (this.buffer.length < 16) return;
       const text = new TextDecoder().decode(this.buffer);
+      const end = text.lastIndexOf('}');
+      if (end < 0) return;
+      const starts = [text.indexOf('{')];
+      const lastStart = text.lastIndexOf('{');
+      if (lastStart > starts[0]) starts.push(lastStart);
+      const isInfo = (o) => !!o && (o.r !== undefined || o.cpi !== undefined || o.battery !== undefined || o.pi !== undefined);
+      for (const start of starts) {
+        if (start < 0 || end <= start) continue;
+        try {
+          const info = JSON.parse(text.slice(start, end + 1));
+          if (!isInfo(info)) continue;
+          this.acceptInfo(info, 'salvaged');
+          return;
+        } catch { /* incomplete JSON, wait for more */ }
+      }
+    }
+
+    /* ── device info ───────────────────────────────────────────────────── */
+
+    /* Wired firmware answers the query with the info JSON inside notify 0x0c
+       chunks instead of a QUERY_RESULT frame, so keep a text accumulator and
+       parse it once the object closes. */
+    pushInfoText(text) {
+      if (!text) return;
+      this.infoText = (this.infoText || '') + text;
+      if (this.infoText.length > 65536) this.infoText = this.infoText.slice(-32768);
+    }
+
+    infoJson() {
+      const text = this.infoText || '';
+      if (text.length < 24) return null;
       const start = text.indexOf('{');
       const end = text.lastIndexOf('}');
-      if (start < 0 || end <= start) return;
-      try {
-        const info = JSON.parse(text.slice(start, end + 1));
-        if (!info || (info.r === undefined && info.cpi === undefined && info.battery === undefined && info.pi === undefined)) return;
+      if (start < 0 || end <= start) return null;
+      const isInfo = (o) => !!o && (o.r !== undefined || o.cpi !== undefined || o.battery !== undefined || o.pi !== undefined);
+      // Whole span first, then the most recent object: a failed earlier attempt
+      // can leave a truncated copy in front of a complete one.
+      const starts = [start];
+      const lastStart = text.lastIndexOf('{');
+      if (lastStart > start) starts.push(lastStart);
+      for (const from of starts) {
+        try {
+          const info = JSON.parse(text.slice(from, end + 1));
+          if (isInfo(info)) return info;
+        } catch { /* try the next start */ }
+      }
+      return null;
+    }
+
+    acceptInfo(info, how) {
+      clearTimeout(this.queryTimer);
+      clearInterval(this.queryRetry);
+      this.queryRetry = null;
+      this.queryText = '';
+      this.infoText = '';
+      // The stream still holds the query answer as text; drop it so the scanner
+      // cannot mistake JSON bytes for frames later.
+      if (!this.info) this.buffer = new Uint8Array(0);
+      if (this.isReceiver && this.channel === null) {
+        // A dongle answers first. Show its info, then ask the paired device on
+        // channel 0; the mouse/keyboard replies with its own product id and name.
+        this.receiverInfo = info;
         this.info = info;
-        this.buffer = new Uint8Array(0);
-        clearTimeout(this.queryTimer);
-        clearInterval(this.queryRetry);
-        this.queryRetry = null;
-        this.log('rx', 'device info (salvaged) ' + JSON.stringify(info).slice(0, 400));
+        if (info.crc === 1) this.crc = true;
+        this.log('rx', 'receiver info — querying paired device on channel 0');
         this.emit('info', info);
-      } catch { /* incomplete JSON, wait for more */ }
+        this.emit('peer', info);
+        this.channel = 0;
+        this.queryAttempts = 0;
+        this.query();
+        this.startQueryRetry();
+        return;
+      }
+      this.info = info;
+      this.crc = info.crc === 1;
+      this.log('rx', `device info${how ? ' (' + how + ')' : ''} ` + JSON.stringify(info).slice(0, 400));
+      this.emit('info', info);
     }
 
     plausible(cmd, offset, len) {
@@ -564,39 +662,23 @@ const RAWM = (() => {
         const text = new TextDecoder().decode(payload);
         this.queryText = (this.queryText || '') + text;
         this.queryText = this.queryText.replace(/\0+$/, '');
+        this.pushInfoText(text);
         let info = null;
         try { info = JSON.parse(this.queryText); } catch { /* chunked, wait for more */ }
-        if (info) {
-          clearTimeout(this.queryTimer);
-          clearInterval(this.queryRetry);
-          this.queryRetry = null;
-          this.queryText = '';
-          if (this.isReceiver && this.channel === null) {
-            // A dongle answers first. Show its info, then ask the paired
-            // device on channel 0; the mouse/keyboard replies with its own
-            // product id and name.
-            this.receiverInfo = info;
-            this.info = info;
-            if (info.crc === 1) this.crc = true;
-            this.log('rx', 'receiver info — querying paired device on channel 0');
-            this.emit('info', info);
-            this.emit('peer', info);
-            this.channel = 0;
-            this.queryAttempts = 0;
-            this.query();
-            this.startQueryRetry();
-            return;
-          }
-          this.info = info;
-          this.crc = info.crc === 1;
-          this.log('rx', 'device info ' + JSON.stringify(info).slice(0, 400));
-          this.emit('info', info);
-        }
+        if (!info) info = this.infoJson();
+        if (info) { this.acceptInfo(info, 'query result'); return; }
         return;
       }
       if (cmd === CMD.NOTIFY) {
         const type = payload[0];
         const value = payload.subarray(1);
+        if (type === NOTIFY.INFO) {
+          this.pushInfoText(new TextDecoder().decode(value));
+          const info = this.infoJson();
+          if (info) { this.acceptInfo(info, 'notify json'); return; }
+          this.log('rx', `info json ${(this.infoText || '').length}B · ${hex(value, 24)}`);
+          return;
+        }
         const notify = { type, value };
         if (type === NOTIFY.CPI && value.length >= 2) notify.cpi = value[0] | (value[1] << 8);
         if (type === NOTIFY.CPI && value.length >= 4) notify.cpi = (value[0] | (value[1] << 8) | (value[2] << 16) | (value[3] << 24)) >>> 0;
