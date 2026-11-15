@@ -232,10 +232,12 @@ and `src/app.js` together, or Google will fall back to `chila.io.vn`.
 - Phosphor **duotone** icons are emitted as a `<symbol>` sprite.
 - Behind the shell: a slow ASCII field (the *drift* look from
   [asciify-engine](https://github.com/ayangabryl/asciify-engine), MIT). Glyphs
-  sit on a 13 px grid over a two-octave value-noise field, sampled on a coarse
-  grid and interpolated, drawn with a short trail at 24 fps. Opaque cards and
-  the rail hide it where text lives; it stops when the tab is hidden and renders
-  one static frame under `prefers-reduced-motion`.
+  are pre-rendered into a 7 × 6 sprite sheet and blitted on a 16–26 px grid over
+  a two-octave value-noise field, sampled on a coarse grid and interpolated, with
+  a short trail at 12 fps. Opaque cards and the rail hide it where text lives.
+  The loop spends at most 1/8 of the frame budget and slows itself down on weak
+  machines, stops when the tab is hidden, and draws one static frame under
+  `prefers-reduced-motion`. Measured ~3% of one core at 1440 × 950.
 - UI text is translated into English, Vietnamese, Chinese, Japanese, Thai,
   Korean and Spanish. The language picker shows inlined flag renders and the
   choice is stored in `localStorage`.
