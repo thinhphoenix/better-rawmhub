@@ -125,9 +125,11 @@
     logOpen: false,
     busy: false,
     fwSwitching: false,
+    bridgeProblem: null,
   };
 
   const transport = new RAWM.Transport((dir, msg) => addLog(dir, msg));
+  if (window.RAWM_BRIDGE) window.RAWM_BRIDGE.setLog((dir, msg) => addLog(dir, msg));
 
   const DEFAULTS = {
     cpiX: 1600, cpiY: 1600, xy: false,
@@ -233,7 +235,7 @@
       `- Device: ${device}`,
       `- Browser: ${browser}`,
       '',
-      '**WebHID console log**',
+      '**HID console log**',
       '<!-- Open the terminal button in the header, reproduce the problem, then paste the log here. -->', '',
     ].join('\n');
     return `${REPO_URL}/issues/new?title=${encodeURIComponent('[Bug] ')}&body=${encodeURIComponent(body)}`;
@@ -422,36 +424,75 @@
     </div>`;
   }
 
+  /* ── Bridge panel (Firefox, Safari) ─────────────────────────────────── */
+
+  const BRIDGE_RELEASES = 'https://github.com/thinhphoenix/better-rawmhub/releases/latest';
+
+  function bridgePlatform() {
+    const ua = navigator.userAgent || '';
+    if (/Mac/i.test(ua)) return 'macOS';
+    if (/Win/i.test(ua)) return 'Windows';
+    return 'Linux';
+  }
+
+  function bridgePanel() {
+    if (RAWM.Transport.backend !== 'bridge') return '';
+    const problem = state.bridgeProblem;
+    const port = (window.RAWM_BRIDGE && window.RAWM_BRIDGE.PORT) || 47311;
+    const headline = problem === 'down'
+      ? 'The bridge is not running.'
+      : problem === 'pair'
+        ? 'Pair this page with the bridge.'
+        : 'This browser has no WebHID — install the bridge once.';
+    return `
+      <div class="notice${problem ? ' warn' : ''}" style="margin-top:14px">
+        ${icon(problem ? 'alert' : 'info')}
+        <div>
+          <strong>${headline}</strong>
+          <p class="help" style="margin-top:6px">Firefox and Safari reach the device through <span class="mono">better-rawmhub-bridge</span>, a small local daemon on <span class="mono">127.0.0.1:${port}</span>. Start it, then press Connect again. Nothing is installed inside the browser and no account is needed.</p>
+          <div class="row wrap" style="margin-top:10px">
+            <a class="btn btn-ghost btn-sm" href="${BRIDGE_RELEASES}" target="_blank" rel="noopener">${icon('download')}<span>Download for ${bridgePlatform()}</span></a>
+            <button class="btn btn-ghost btn-sm" data-action="bridge-retry">${icon('refresh')}<span>Try again</span></button>
+            ${problem === 'pair' ? `<button class="btn btn-primary btn-sm" data-action="bridge-pair-open">${icon('link')}<span>Enter code</span></button>` : ''}
+            <button class="btn btn-ghost btn-sm" data-action="bridge-forget">${icon('x')}<span>Forget pairing</span></button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function connectView() {
     const support = RAWM.Transport.supported;
+    const blocked = location.protocol === 'file:';
+    const native = RAWM.Transport.native;
     const hero = byProduct('234a') || devices.find((d) => d.kind === 'mouse') || null;
     const counts = {
       mice: devices.filter((d) => d.kind === 'mouse').length,
       keyboards: devices.filter((d) => d.kind === 'keyboard').length,
     };
     return `
-    ${pageHead('WebHID configurator', 'Your gear, <span style="color:var(--accent)">dialed in</span>.',
-      'Tune sensitivity, polling, lighting and key maps from the browser. Settings are written straight to the device — no driver, no installer, no account.',
+    ${pageHead('Browser configurator', 'Your gear, <span style="color:var(--accent)">dialed in</span>.',
+      'Tune sensitivity, polling, lighting and key maps from the browser. Settings are written straight to the device — no account, no vendor software.',
       `<span class="pill">${counts.mice} mice · ${counts.keyboards} keyboards</span>`)}
 
     <div class="connect-solo">
       <section class="card connect-card">
         <div class="connect-stage">
-          <div class="stage-tags"><span class="tag accent"><span class="dot on"></span>READY</span><span class="tag">WEBHID</span></div>
+          <div class="stage-tags"><span class="tag accent"><span class="dot on"></span>READY</span><span class="tag">${native ? 'WEBHID' : 'BRIDGE'}</span></div>
           ${img(hero ? productImage(hero) : '', 'device-render', hero ? hero.title : 'RAWM mouse')}
         </div>
         <div class="connect-copy">
           <h2>Connect your device</h2>
-          <p>Turn the mouse on and switch to <strong style="color:var(--text);font-weight:500">2.4 GHz</strong>, or plug it in with a USB cable. Then pick it from the browser prompt — Chromium browsers only.</p>
+          <p>Turn the mouse on and switch to <strong style="color:var(--text);font-weight:500">2.4 GHz</strong>, or plug it in with a USB cable. Then press Connect — Chrome and Edge ask you to pick the device, the bridge picks the RAWM interface for you.</p>
           <div class="row wrap">
-            <button class="btn btn-primary btn-lg" data-action="connect" ${support ? '' : 'disabled'}>
+            <button class="btn btn-primary btn-lg" data-action="connect" ${support && !blocked ? '' : 'disabled'}>
               ${icon('link')}<span>Connect device</span>
             </button>
           </div>
-          ${!support ? `<div class="browser-note">${icon('alert')}<span>This browser has no WebHID support. Use Chrome or Edge on desktop over <span class="mono">https://</span> or <span class="mono">localhost</span>.</span></div>` : ''}
+          ${blocked ? `<div class="browser-note">${icon('alert')}<span>This page was opened from disk. Serve it over <span class="mono">http://localhost</span> or <span class="mono">https://</span> first.</span></div>` : ''}
+          ${bridgePanel()}
           <div class="checklist">
             <div class="check-row"><span class="cr-n">1</span><span>Switch the device to <strong>2.4 GHz</strong>, or connect it with a USB cable.</span></div>
-            <div class="check-row"><span class="cr-n">2</span><span>Choose the RAWM device in the browser's device picker.</span></div>
+            <div class="check-row"><span class="cr-n">2</span><span>Choose the RAWM device${native ? " in the browser's device picker" : ' — the bridge lists them'}</span></div>
             <div class="check-row"><span class="cr-n">3</span><span>Wait for the handshake — the console logs every packet.</span></div>
           </div>
         </div>
@@ -1293,14 +1334,14 @@
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>What Better RAWM Hub is</h2><p>Community rebuild of the vendor web configurator</p></div></div><span class="pill accent">OPEN SOURCE</span></div>
         <div class="card-body">
-          <p class="help">Better RAWM Hub is a free, open-source alternative to the RAWM HUB desktop software. It talks to the device over WebHID straight from Chrome or Edge, so DPI stages, polling rate, lift-off distance, angle tuning, motion sync, lighting, button mapping, advanced keys and macros can be changed without installing anything. Every change is written to the mouse and stored in its onboard memory.</p>
+          <p class="help">Better RAWM Hub is a free, open-source alternative to the RAWM HUB desktop software. It talks to the device straight from the browser — WebHID in Chrome and Edge, or the small <span class="mono">better-rawmhub-bridge</span> daemon in Firefox and Safari — so DPI stages, polling rate, lift-off distance, angle tuning, motion sync, lighting, button mapping, advanced keys and macros can be changed without installing vendor software. Every change is written to the mouse and stored in its onboard memory.</p>
           <p class="help" style="margin-top:10px">RAWM HUB Web is also known as free RAWM mouse software that runs directly in the browser: adjust DPI, polling rate, lighting, key mapping and macros without installing anything.</p>
           <div class="kv" style="margin-top:14px"><span class="k">Installer</span><span class="v">None — runs in the browser</span></div>
           <div class="kv"><span class="k">Account</span><span class="v">Not required</span></div>
           <div class="kv"><span class="k">Telemetry</span><span class="v">None</span></div>
           <div class="kv"><span class="k">Price</span><span class="v good">Free · open source</span></div>
-          <div class="kv"><span class="k">Browser</span><span class="v">Chrome / Edge 89+</span></div>
-          <div class="kv"><span class="k">Device access</span><span class="v">${RAWM.Transport.supported ? 'WebHID · Vendor ID 0x1915' : 'WebHID unavailable'}</span></div>
+          <div class="kv"><span class="k">Browser</span><span class="v">${RAWM.Transport.native ? 'Chrome / Edge 89+' : 'Firefox / Safari · bridge'}</span></div>
+          <div class="kv"><span class="k">Device access</span><span class="v">${RAWM.Transport.native ? 'WebHID · Vendor ID 0x1915' : 'Bridge · Vendor ID 0x1915'}</span></div>
         </div>
       </section>
 
@@ -1345,7 +1386,7 @@
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('bug')}<div><h2>Report the app</h2><p>Bugs and feature requests go to GitHub Issues</p></div></div></div>
         <div class="card-body">
-          <p class="help">The issue opens pre-filled with your app version, browser and connected device. For device bugs, paste the WebHID console log too.</p>
+          <p class="help">The issue opens pre-filled with your app version, browser and connected device. For device bugs, paste the HID console log too.</p>
           <div class="row" style="margin-top:14px;flex-wrap:wrap">
             <a class="btn btn-primary btn-sm" href="${issueLink('bug')}" target="_blank" rel="noopener">${icon('bug')}<span>Report a bug</span></a>
             <a class="btn btn-ghost btn-sm" href="${issueLink('feature')}" target="_blank" rel="noopener">${icon('plus')}<span>Request a feature</span></a>
@@ -1580,10 +1621,15 @@
     try {
       const picked = await RAWM.Transport.request();
       if (!picked.length) { state.busy = false; return; }
+      state.bridgeProblem = null;
       const pid = Number(picked[0].productId).toString(16).padStart(4, '0');
       const authorised = await RAWM.Transport.authorised();
       const pool = [...picked, ...authorised.filter((d) => Number(d.productId) === Number(picked[0].productId))];
-      const writable = pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
+      // WebHID can expose several collections per product; pick the one that
+      // can be written to. The bridge already sorts vendor interfaces first.
+      const writable = picked[0].bridge
+        ? picked[0]
+        : pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
       const hid = writable || picked[0];
       addLog('info', `HID candidates: ${pool.map((d) => `${d.productName || 'device'} (${(d.collections || []).length} collections)`).join(' · ')}`);
       const known = byProduct(pid);
@@ -1617,12 +1663,29 @@
       state.cfg = null;
       if (err && err.name === 'NotFoundError') {
         toast('No device selected', 'err');
+      } else if (err && err.code === 'pair-required') {
+        state.bridgeProblem = 'pair';
+        addLog('err', 'bridge: this page is not paired yet');
+        openBridgePair();
+      } else if (err && err.code === 'no-daemon') {
+        state.bridgeProblem = 'down';
+        if (location.protocol === 'file:') {
+          toast('Serve this page over http(s) — a file:// page cannot reach the bridge', 'err');
+        } else {
+          toast('Bridge not running — start better-rawmhub-bridge, then try again', 'err');
+        }
+        addLog('err', `bridge unavailable: ${err.message}`);
+      } else if (err && err.code === 'no-device') {
+        toast('No RAWM device found — check 2.4 GHz mode or the cable', 'err');
+        addLog('err', err.message);
+      } else if (err && err.code === 'device-busy') {
+        toast('Another tab already has this device open', 'err');
       } else if (err && err.name === 'SecurityError') {
         toast('Permission was blocked by the browser', 'err');
         addLog('err', err.message);
       } else if (location.protocol === 'file:') {
-        toast('WebHID needs localhost or https:// — serve the folder first', 'err');
-        addLog('err', 'file:// origin cannot use WebHID; run python -m http.server 8080');
+        toast('The device needs localhost or https:// — serve the folder first', 'err');
+        addLog('err', 'file:// origin cannot reach the device; run python -m http.server 8080');
       } else {
         toast(err.message || 'Could not open device', 'err');
         addLog('err', String((err && err.message) || err));
@@ -1737,9 +1800,9 @@
     state.logOpen = true;
     const root = $('#modal-root');
     root.innerHTML = `<div class="modal-scrim" data-close="1">
-      <div class="modal" role="dialog" aria-modal="true" aria-label="WebHID console">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="HID console">
         <div class="modal-head">
-          <div class="row" style="gap:9px">${icon('terminal')}<h3>WebHID console</h3><span class="pill ${state.connected ? 'accent' : ''}"><span class="dot ${state.connected ? 'on' : ''}"></span>${state.connected ? 'LIVE' : 'IDLE'}</span></div>
+          <div class="row" style="gap:9px">${icon('terminal')}<h3>HID console</h3><span class="pill ${state.connected ? 'accent' : ''}"><span class="dot ${state.connected ? 'on' : ''}"></span>${state.connected ? 'LIVE' : 'IDLE'}</span></div>
           <button class="icon-btn" data-action="close-log" aria-label="Close">${icon('x')}</button>
         </div>
         <div class="modal-body">
@@ -1764,6 +1827,65 @@
   function closeLog() {
     state.logOpen = false;
     $('#modal-root').innerHTML = '';
+  }
+
+  function closeModal() {
+    state.logOpen = false;
+    $('#modal-root').innerHTML = '';
+  }
+
+  /* ── Bridge pairing ────────────────────────────────────────────────── */
+
+  function openBridgePair() {
+    const root = $('#modal-root');
+    const port = (window.RAWM_BRIDGE && window.RAWM_BRIDGE.PORT) || 47311;
+    root.innerHTML = `<div class="modal-scrim" data-close="1">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Pair with the bridge">
+        <div class="modal-head">
+          <div class="row" style="gap:9px">${icon('link')}<h3>Pair with the bridge</h3></div>
+          <button class="icon-btn" data-action="close-modal" aria-label="Close">${icon('x')}</button>
+        </div>
+        <div class="modal-body">
+          <p class="help">The bridge printed a six-digit code in its window. Type it here once — this browser is remembered after that.</p>
+          <input class="input" id="bridge-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"
+            style="margin-top:12px;letter-spacing:.35em;font-family:'JetBrains Mono',monospace;font-size:20px;text-align:center" />
+          <p class="help" id="bridge-pair-error" style="color:var(--danger);margin-top:8px"></p>
+        </div>
+        <div class="modal-foot">
+          <span class="help">127.0.0.1:${port}</span>
+          <div class="row">
+            <button class="btn btn-ghost btn-sm" data-action="close-modal">Cancel</button>
+            <button class="btn btn-primary btn-sm" data-action="bridge-pair">Pair</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    const input = $('#bridge-code');
+    if (input) {
+      input.focus();
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') pairBridge(); });
+    }
+  }
+
+  async function pairBridge() {
+    const input = $('#bridge-code');
+    const error = $('#bridge-pair-error');
+    const code = ((input && input.value) || '').replace(/\D/g, '');
+    if (code.length !== 6) {
+      if (error) error.textContent = 'Enter the six-digit code shown by the bridge.';
+      return;
+    }
+    if (!window.RAWM_BRIDGE) return;
+    try {
+      await window.RAWM_BRIDGE.pair(code);
+      closeModal();
+      state.bridgeProblem = null;
+      toast('Paired with the bridge', 'ok');
+      connectDevice();
+    } catch (err) {
+      if (error) error.textContent = (err && err.message) || 'Pairing failed.';
+      addLog('err', `bridge pairing: ${(err && err.message) || 'failed'}`);
+    }
   }
 
   /* ── Toasts ────────────────────────────────────────────────────────── */
@@ -2154,6 +2276,16 @@
 
       case 'open-log': openLog(); break;
       case 'close-log': closeLog(); break;
+      case 'close-modal': closeModal(); break;
+      case 'bridge-pair': pairBridge(); break;
+      case 'bridge-pair-open': openBridgePair(); break;
+      case 'bridge-retry': connectDevice(); break;
+      case 'bridge-forget':
+        if (window.RAWM_BRIDGE) window.RAWM_BRIDGE.forget();
+        state.bridgeProblem = null;
+        render();
+        toast('Pairing forgotten — the next connect asks for a code', 'info');
+        break;
       case 'clear-log': state.log = []; renderLog(); break;
       case 'copy-log': {
         const text = state.log.map((l) => `${l.t.toISOString()} ${l.dir.toUpperCase()} ${l.msg}`).join('\n');
@@ -2384,8 +2516,8 @@
 
     render();
     loadStarCount();
-    addLog('info', 'RAWM HUB 2.0 · WebHID ' + (RAWM.Transport.supported ? 'available' : 'unavailable'));
-    if (!RAWM.Transport.supported) addLog('err', 'navigator.hid missing — use Chrome or Edge');
+    addLog('info', `RAWM HUB 2.0 · ${RAWM.Transport.native ? 'WebHID' : 'bridge'} ${RAWM.Transport.supported ? 'available' : 'unavailable'}`);
+    if (!RAWM.Transport.supported) addLog('err', 'no HID transport — use Chrome/Edge, or install better-rawmhub-bridge');
   }
 
   window.addEventListener('hashchange', () => {

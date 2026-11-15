@@ -19,6 +19,40 @@
 const RAWM = (() => {
   const VENDOR_ID = 0x1915;
 
+  const Bridge = typeof RAWM_BRIDGE !== 'undefined' ? RAWM_BRIDGE : null;
+
+  /* One facade for both transports: native WebHID where the browser has it,
+     and the local bridge daemon (Firefox, Safari) everywhere else. Both hand
+     back HIDDevice-shaped objects, so the protocol code below does not care. */
+  const HID = {
+    get native() {
+      return typeof navigator !== 'undefined' && !!navigator.hid;
+    },
+    get supported() {
+      return HID.native || !!Bridge;
+    },
+    get backend() {
+      return HID.native ? 'webhid' : (Bridge ? 'bridge' : 'none');
+    },
+    async devices() {
+      if (HID.native) {
+        try { return await navigator.hid.getDevices(); } catch { return []; }
+      }
+      if (Bridge) {
+        try { return await Bridge.getDevices(); } catch { return []; }
+      }
+      return [];
+    },
+    async request() {
+      if (HID.native) {
+        const devices = await navigator.hid.requestDevice({ filters: [{ vendorId: VENDOR_ID }] });
+        return devices || [];
+      }
+      if (Bridge) return Bridge.request();
+      throw new Error('No HID transport is available in this browser.');
+    },
+  };
+
   const CMD = {
     QUERY: 0x1,
     QUERY_RESULT: 0x2,
@@ -126,20 +160,24 @@ const RAWM = (() => {
     }
 
     static get supported() {
-      return typeof navigator !== 'undefined' && !!navigator.hid;
+      return HID.supported;
+    }
+
+    static get backend() {
+      return HID.backend;
+    }
+
+    static get native() {
+      return HID.native;
     }
 
     static async authorised() {
-      if (!Transport.supported) return [];
-      try { return await navigator.hid.getDevices(); } catch { return []; }
+      return HID.devices();
     }
 
     static async request() {
-      if (!Transport.supported) throw new Error('WebHID is not available in this browser.');
-      const devices = await navigator.hid.requestDevice({
-        filters: [{ vendorId: VENDOR_ID }],
-      });
-      return devices || [];
+      if (!Transport.supported) throw new Error('No HID transport is available in this browser.');
+      return HID.request();
     }
 
     async connect(hidDevice, profile) {
@@ -174,7 +212,13 @@ const RAWM = (() => {
       // Pick the actual output report from the descriptor. Receivers and
       // keyboards are not always 64-byte reports; writing the wrong length
       // makes Chrome reject the report.
-      if (!this.hs) {
+      if (!this.hs && hidDevice.bridge) {
+        // The bridge cannot read the HID report descriptor, so fall back to the
+        // catalogue's report length and let sendReport() retry 64 -> 32 when
+        // the device rejects the write.
+        this.reportLength = Number(profile && profile.report_len) || 64;
+        this.log('info', `bridge transport · output report ${this.reportId}/${this.reportLength}B`);
+      } else if (!this.hs) {
         const outputs = [];
         const features = [];
         for (const collection of hidDevice.collections || []) {
@@ -203,7 +247,7 @@ const RAWM = (() => {
           this.log('info', `no output report - trying feature report ${this.reportId}/${this.reportLength}B`);
         } else {
           this.noOutput = true;
-          this.log('err', 'this HID interface has no output or feature reports; Chrome cannot write to it');
+          this.log('err', 'this HID interface has no output or feature reports; the browser cannot write to it');
           this.emit('nooutput', null);
           return;
         }
@@ -861,10 +905,10 @@ const RAWM = (() => {
     }
 
     async reconnect() {
-      if (!this.profile || !navigator.hid) return false;
+      if (!this.profile) return false;
       const profile = this.profile;
-      const devices = await navigator.hid.getDevices();
-      const device = devices.find((d) => d.vendorId === VENDOR_ID && Number(d.productId) === Number(profile.product_id));
+      const devices = await HID.devices();
+      const device = devices.find((d) => Number(d.vendorId) === VENDOR_ID && Number(d.productId) === Number(profile.product_id));
       if (!device) return false;
       await this.connect(device, profile);
       return true;
@@ -876,5 +920,5 @@ const RAWM = (() => {
     }
   }
 
-  return { VENDOR_ID, CMD, CFG, ACTION, NOTIFY, LED, Transport, crc16, frame, hex };
+  return { VENDOR_ID, CMD, CFG, ACTION, NOTIFY, LED, HID, Transport, crc16, frame, hex };
 })();

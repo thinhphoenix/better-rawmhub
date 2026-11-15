@@ -49,7 +49,7 @@
       "applicationCategory": "UtilitiesApplication",
       "applicationSubCategory": "Mouse and keyboard configuration",
       "operatingSystem": "Windows, macOS, Linux, ChromeOS",
-      "browserRequirements": "Chrome or Edge 89+ with WebHID",
+      "browserRequirements": "Chrome or Edge 89+ with WebHID, or Firefox and Safari with the better-rawmhub-bridge daemon",
       "url": "https://better-rawmhub.chila.io.vn/",
       "description": "Free, open-source alternative to the RAWM HUB desktop software. Configure DPI stages, polling rate, lighting, buttons, advanced keys and macros for RAWM mice and keyboards directly in the browser.",
       "isAccessibleForFree": true,
@@ -947,7 +947,7 @@ select.input option { background: #141414; color: #e9ebee; }
     <h1>Better RAWM Hub</h1>
     <p>Better RAWM Hub is a free browser-based configurator and alternative to the RAWM HUB desktop software for RAWM mice and keyboards. It configures DPI stages, polling rate, lift-off distance, lighting, button mapping and macros over WebHID in Chrome or Edge.</p>
     <p>Open-source repository and issue tracker: <a href="https://github.com/thinhphoenix/better-rawmhub">github.com/thinhphoenix/better-rawmhub</a>.</p>
-    <p>This page needs JavaScript and a Chromium browser with WebHID support.</p>
+    <p>This page needs JavaScript. Use Chrome or Edge with WebHID, or Firefox and Safari with the better-rawmhub-bridge daemon.</p>
   </div>
 </noscript>
 
@@ -1017,7 +1017,7 @@ select.input option { background: #141414; color: #e9ebee; }
           <option value="0">FW · STANDARD</option>
           <option value="1">FW · GAMING</option>
         </select>
-        <button class="icon-btn" data-action="open-log" title="WebHID console" aria-label="Open WebHID console">
+        <button class="icon-btn" data-action="open-log" title="HID console" aria-label="Open HID console">
           <svg class="ic"><use href="#i-terminal"/></svg>
         </button>
       </div>
@@ -1276,6 +1276,492 @@ react-is/cjs/react-is.production.min.js:
 */
 </script>
 <script>/* ─────────────────────────────────────────────────────────────────────
+   Local bridge transport
+   Firefox and Safari have no WebHID. better-rawmhub-bridge is a small
+   native daemon that owns the HID handle and hands it to the page over a
+   loopback WebSocket. This module wraps that socket in an object shaped
+   like a WebHID HIDDevice, so src/hid.js speaks both transports without
+   any protocol change: same sendReport / sendFeatureReport /
+   receiveFeatureReport / inputreport contract.
+
+   Wire protocol v1
+     control frames are JSON text
+       → { t:'hello', api, token? }    ← { t:'welcome', api, version, platform, paired }
+       → { t:'pair', code }            ← { t:'paired', token } | { t:'error', code:'bad-code' }
+       → { t:'list' }                  ← { t:'devices', devices:[…] }
+       → { t:'open', seq, deviceId }   ← { t:'opened', seq, handle }
+       → { t:'send', seq, handle, rid, data }  ← { t:'sent', seq } | { t:'send-error', seq, message }
+       → { t:'feature', seq, handle, rid, dir, data } ← { t:'feature-data', seq, data }
+       → { t:'close', handle }         ← { t:'closed', handle }
+       ← { t:'gone', handle, reason }
+     input reports are binary frames
+       [0x01][handle:u16le][raw report bytes…]
+
+   The raw report still carries the report-id byte the platform HID layer
+   returned (or not, when the device has no numbered reports). The first
+   report on a handle decides which shape it is; see decideReport().
+   ───────────────────────────────────────────────────────────────────── */
+
+const RAWM_BRIDGE = (() => {
+  const API = 1;
+  const PORT = 47311;
+  const CONNECT_TIMEOUT = 1200;
+  const REPLY_TIMEOUT = 2500;
+  const SEND_TIMEOUT = 1500;
+  const TOKEN_KEY = 'rawmhub.bridge.tokens';
+
+  let logFn = () => {};
+  const note = (dir, msg) => { try { logFn(dir, `bridge · ${msg}`); } catch { /* noop */ } };
+
+  class BridgeError extends Error {
+    constructor(code, message, detail) {
+      super(message || code);
+      this.name = 'BridgeError';
+      this.code = code;
+      this.detail = detail || null;
+    }
+  }
+
+  /* Report-id shape, decided once per handle from the first inbound report.
+     A numbered interface answers with the report id first: 0x52 on a wired
+     mouse, 0x00 on a receiver report that has no id. An interface without
+     numbered reports answers straight with an envelope byte (0x80|len,
+     0x40 or 0xC0|channel). Treating the first byte as an id only in the
+     first case reproduces exactly what Chrome's WebHID would hand over. */
+  function decideReport(raw) {
+    if (!raw || !raw.length) return { numbered: false, reportId: 0, body: raw || new Uint8Array(0) };
+    const numbered = raw[0] === 0x00 || raw[0] === 0x52;
+    return numbered
+      ? { numbered: true, reportId: raw[0], body: raw.subarray(1) }
+      : { numbered: false, reportId: 0, body: raw };
+  }
+
+  function toB64(bytes) {
+    let out = '';
+    for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+    return btoa(out);
+  }
+
+  function fromB64(text) {
+    const raw = atob(text || '');
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  /* Tokens are per origin, in localStorage, so a reload does not ask for the
+     pairing code again. The daemon only stores a SHA-256 of the token. */
+  const tokens = {
+    all() {
+      try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || '{}') || {}; } catch { return {}; }
+    },
+    get(origin) {
+      const value = this.all()[origin];
+      return typeof value === 'string' ? value : null;
+    },
+    set(origin, token) {
+      const all = this.all();
+      all[origin] = token;
+      try { localStorage.setItem(TOKEN_KEY, JSON.stringify(all)); } catch { /* private mode */ }
+    },
+    clear(origin) {
+      const all = this.all();
+      delete all[origin];
+      try { localStorage.setItem(TOKEN_KEY, JSON.stringify(all)); } catch { /* private mode */ }
+    },
+  };
+
+  function fire(device, type, detail) {
+    const list = device._listeners[type];
+    if (!list) return;
+    for (const fn of list.slice()) {
+      try { fn(detail); } catch (err) { note('err', `listener threw: ${err && err.message}`); }
+    }
+  }
+
+  /* ── HIDDevice-shaped wrapper ───────────────────────────────────────── */
+
+  class BridgeDevice {
+    constructor(client, info) {
+      this.client = client;
+      this.bridge = true;
+      this.deviceId = info.id;
+      this.path = info.path || info.id;
+      this.vendorId = info.vendorId;
+      this.productId = info.productId;
+      this.productName = info.productName || 'RAWM device';
+      this.serialNumber = info.serialNumber || '';
+      this.usagePage = info.usagePage || 0;
+      this.usage = info.usage || 0;
+      this.interface = info.interface;
+      // The daemon cannot read the report descriptor, so the transport falls
+      // back to profile.report_len (64 bytes by default) plus its 64→32 retry.
+      this.collections = [];
+      this.opened = false;
+      this.handle = null;
+      this.reportLength = 0;
+      this._listeners = { inputreport: [], disconnect: [] };
+      this._lastFeature = null;
+      this._numbered = null;
+    }
+
+    addEventListener(type, fn) {
+      if (!this._listeners[type]) this._listeners[type] = [];
+      if (!this._listeners[type].includes(fn)) this._listeners[type].push(fn);
+    }
+
+    removeEventListener(type, fn) {
+      const list = this._listeners[type];
+      if (!list) return;
+      const i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    }
+
+    dispatchEvent(event) {
+      const type = event && event.type;
+      if (type) fire(this, type, event);
+      return true;
+    }
+
+    async open() {
+      if (this.opened) return;
+      const msg = await this.client.open(this);
+      this.handle = msg.handle;
+      this.reportLength = Number(msg.reportLength) || 0;
+      this.opened = true;
+      note('info', `opened ${this.productName} via the bridge (usagePage ${hex16(this.usagePage)})`);
+    }
+
+    async close() {
+      const handle = this.handle;
+      this.opened = false;
+      this.handle = null;
+      if (handle == null) return;
+      try { await this.client.close(handle); } catch { /* already gone */ }
+    }
+
+    sendReport(reportId, data) {
+      return this.client.sendReport(this, reportId, data);
+    }
+
+    async sendFeatureReport(reportId, data) {
+      const view = await this.client.feature(this, reportId, 'write', data);
+      this._lastFeature = view;
+    }
+
+    async receiveFeatureReport(reportId) {
+      if (this._lastFeature) {
+        const view = this._lastFeature;
+        this._lastFeature = null;
+        return view;
+      }
+      return this.client.feature(this, reportId, 'read', null);
+    }
+
+    /* Called from the client when a binary frame arrives for this handle. */
+    _report(raw) {
+      const shape = decideReport(raw);
+      if (this._numbered == null) {
+        this._numbered = shape.numbered;
+        note('info', `${this.productName} input reports ${this._numbered ? 'carry a report id' : 'have no report id'}`);
+      }
+      const reportId = this._numbered ? shape.reportId : 0;
+      const body = this._numbered ? shape.body : raw;
+      const data = new DataView(body.buffer, body.byteOffset, body.byteLength);
+      fire(this, 'inputreport', { type: 'inputreport', reportId, data });
+    }
+  }
+
+  function hex16(value) {
+    return '0x' + (Number(value) || 0).toString(16).padStart(4, '0');
+  }
+
+  /* ── WebSocket client ───────────────────────────────────────────────── */
+
+  function openSocket() {
+    return new Promise((resolve, reject) => {
+      let ws;
+      try { ws = new WebSocket(`ws://127.0.0.1:${PORT}/v1/ws`); }
+      catch (err) { reject(new BridgeError('no-daemon', 'This browser refused a loopback WebSocket', err)); return; }
+      ws.binaryType = 'arraybuffer';
+      let settled = false;
+      const fail = (detail) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { ws.close(); } catch { /* noop */ }
+        reject(new BridgeError('no-daemon', `Nothing answered on 127.0.0.1:${PORT}`, detail));
+      };
+      const timer = setTimeout(() => fail('connect timeout'), CONNECT_TIMEOUT);
+      ws.onopen = () => { if (settled) return; settled = true; clearTimeout(timer); resolve(ws); };
+      ws.onerror = () => fail('socket error');
+      ws.onclose = () => fail('socket closed during the handshake');
+    });
+  }
+
+  class Client {
+    constructor() {
+      this.ws = null;
+      this.ready = null;
+      this.welcome = null;
+      this.seq = 0;
+      this.waiters = [];
+      this.devices = new Map();
+      this.handles = new Map();
+      this.lastError = null;
+      this.silent = false;
+    }
+
+    connect() {
+      if (this.ready) return this.ready;
+      this.silent = false;
+      this.ready = (async () => {
+        const ws = await openSocket();
+        this.ws = ws;
+        ws.onmessage = (event) => {
+          if (typeof event.data === 'string') this._control(event.data);
+          else this._binary(event.data);
+        };
+        ws.onclose = () => this._closed('the bridge stopped');
+        ws.onerror = () => { /* reported through onclose */ };
+        const welcome = await this._hello();
+        this.welcome = welcome;
+        note('info', `bridge ${welcome.version || '?'} on 127.0.0.1:${PORT} · ${welcome.platform || 'unknown'}${welcome.paired ? '' : ' · pairing required'}`);
+        return welcome;
+      })();
+      this.ready.catch(() => { this.ready = null; });
+      return this.ready;
+    }
+
+    _hello() {
+      const wait = this._expect((m) => m.t === 'welcome', CONNECT_TIMEOUT + 800, 'no-daemon');
+      this._send({ t: 'hello', api: API, token: tokens.get(location.origin) });
+      return wait;
+    }
+
+    _expect(match, timeout, code) {
+      return new Promise((resolve, reject) => {
+        const waiter = { match, resolve, reject, timer: null };
+        waiter.timer = setTimeout(() => {
+          this.waiters = this.waiters.filter((w) => w !== waiter);
+          reject(new BridgeError(code || 'timeout', 'The bridge did not answer in time'));
+        }, timeout || REPLY_TIMEOUT);
+        this.waiters.push(waiter);
+      });
+    }
+
+    _settle(msg) {
+      const index = this.waiters.findIndex((w) => {
+        try { return w.match(msg); } catch { return false; }
+      });
+      if (index < 0) return false;
+      const waiter = this.waiters.splice(index, 1)[0];
+      clearTimeout(waiter.timer);
+      if (msg.t === 'error' || msg.t === 'send-error') {
+        waiter.reject(new BridgeError(msg.code || 'bridge-error', msg.message || msg.code || 'The bridge refused the request'));
+      } else {
+        waiter.resolve(msg);
+      }
+      return true;
+    }
+
+    _send(msg) {
+      if (!this.ws || this.ws.readyState !== 1) throw new BridgeError('no-daemon', 'The bridge is not connected');
+      try { this.ws.send(JSON.stringify(msg)); }
+      catch (err) { throw new BridgeError('no-daemon', 'Could not write to the bridge', err); }
+    }
+
+    _control(raw) {
+      let msg;
+      try { msg = JSON.parse(raw); } catch { return; }
+      if (this._settle(msg)) return;
+      if (msg.t === 'gone') {
+        const device = this.handles.get(msg.handle);
+        if (!device) return;
+        this.handles.delete(msg.handle);
+        device.opened = false;
+        device.handle = null;
+        note('err', `${device.productName} disconnected (${msg.reason || 'unplugged'})`);
+        fire(device, 'disconnect', { type: 'disconnect', reason: msg.reason || 'device removed' });
+        return;
+      }
+      if (msg.t === 'error' && !this.silent) note('err', `${msg.code || 'error'}: ${msg.message || ''}`);
+    }
+
+    _binary(buffer) {
+      const view = new DataView(buffer);
+      if (view.byteLength < 4 || view.getUint8(0) !== 1) return;
+      const device = this.handles.get(view.getUint16(1, true));
+      if (!device) return;
+      device._report(new Uint8Array(buffer, 3));
+    }
+
+    _closed(reason) {
+      const hadSocket = !!this.ws;
+      this.ws = null;
+      this.ready = null;
+      this.welcome = null;
+      for (const waiter of this.waiters.splice(0)) {
+        clearTimeout(waiter.timer);
+        waiter.reject(new BridgeError('no-daemon', reason));
+      }
+      for (const device of this.handles.values()) {
+        device.opened = false;
+        device.handle = null;
+        fire(device, 'disconnect', { type: 'disconnect', reason });
+      }
+      this.handles.clear();
+      if (hadSocket && !this.silent) note('err', 'bridge connection closed');
+    }
+
+    async list() {
+      this._send({ t: 'list' });
+      const msg = await this._expect((m) => m.t === 'devices' || m.t === 'error');
+      return Array.isArray(msg.devices) ? msg.devices : [];
+    }
+
+    async open(device) {
+      const seq = ++this.seq;
+      this._send({ t: 'open', seq, deviceId: device.deviceId });
+      const msg = await this._expect(
+        (m) => m.seq === seq && (m.t === 'opened' || m.t === 'error'),
+        REPLY_TIMEOUT + 1500,
+        'open-failed',
+      );
+      this.handles.set(msg.handle, device);
+      return msg;
+    }
+
+    async close(handle) {
+      try { this._send({ t: 'close', handle }); } catch { /* bridge is down */ }
+      this.handles.delete(handle);
+    }
+
+    sendReport(device, reportId, data) {
+      const seq = ++this.seq;
+      this._send({ t: 'send', seq, handle: device.handle, rid: reportId & 0xff, data: toB64(data) });
+      return this._expect(
+        (m) => m.seq === seq && (m.t === 'sent' || m.t === 'send-error' || m.t === 'error'),
+        SEND_TIMEOUT,
+        'send-timeout',
+      ).then(() => undefined);
+    }
+
+    feature(device, reportId, dir, data) {
+      const seq = ++this.seq;
+      this._send({ t: 'feature', seq, handle: device.handle, rid: reportId & 0xff, dir, data: data ? toB64(data) : null });
+      return this._expect(
+        (m) => m.seq === seq && (m.t === 'feature-data' || m.t === 'send-error' || m.t === 'error'),
+        REPLY_TIMEOUT,
+        'feature-timeout',
+      ).then((msg) => {
+        const bytes = fromB64(msg.data || '');
+        return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      });
+    }
+
+    async pair(code) {
+      await this.connect();
+      this._send({ t: 'pair', code: String(code || '').trim() });
+      const msg = await this._expect((m) => m.t === 'paired' || m.t === 'error', REPLY_TIMEOUT + 1500, 'pair-timeout');
+      if (!msg.token) throw new BridgeError('pair-failed', 'The bridge did not return a token');
+      tokens.set(location.origin, msg.token);
+      if (this.welcome) this.welcome.paired = true;
+      note('info', `paired with the bridge for ${location.origin}`);
+      return msg.token;
+    }
+
+    shutdown() {
+      this.silent = true;
+      const ws = this.ws;
+      this._closed('closed by the page');
+      try { if (ws) ws.close(); } catch { /* noop */ }
+    }
+  }
+
+  let client = null;
+  const get = () => (client || (client = new Client()));
+
+  /* One BridgeDevice per daemon device id, reused across calls so a reconnect
+     after a device reboot keeps the same object and its listeners. */
+  function mapDevices(c, list) {
+    return list
+      .map((info) => {
+        let device = c.devices.get(info.id);
+        if (!device) {
+          device = new BridgeDevice(c, info);
+          c.devices.set(info.id, device);
+        }
+        return device;
+      })
+      .sort((a, b) => (b.usagePage || 0) - (a.usagePage || 0));
+  }
+
+  /* ── Public API ─────────────────────────────────────────────────────── */
+
+  async function request() {
+    const c = get();
+    const welcome = await c.connect();
+    if (!welcome.paired) throw new BridgeError('pair-required', 'This page is not paired with the bridge yet');
+    const list = await c.list();
+    if (!list.length) throw new BridgeError('no-device', 'The bridge found no RAWM device on vendor 0x1915');
+    return mapDevices(c, list);
+  }
+
+  async function pair(code) {
+    const c = get();
+    await c.pair(code);
+    return request();
+  }
+
+  /* Used by the transport for reconnects after a reboot or a channel change:
+     ask the daemon again instead of trusting a cached handle. */
+  async function getDevices() {
+    if (!client || !client.ws) return [];
+    try {
+      const welcome = await client.connect();
+      if (!welcome.paired) return [];
+      return mapDevices(client, await client.list());
+    } catch {
+      return [];
+    }
+  }
+
+  function forget() {
+    tokens.clear(location.origin);
+    if (client) client.shutdown();
+    client = null;
+  }
+
+  function reset() {
+    if (client) client.shutdown();
+    client = null;
+  }
+
+  function setLog(fn) {
+    logFn = typeof fn === 'function' ? fn : () => {};
+  }
+
+  return {
+    API,
+    PORT,
+    available: true,
+    request,
+    pair,
+    getDevices,
+    forget,
+    reset,
+    setLog,
+    decideReport,
+    tokens,
+    get lastError() { return client ? client.lastError : null; },
+    get welcome() { return client ? client.welcome : null; },
+  };
+})();
+
+if (typeof window !== 'undefined') window.RAWM_BRIDGE = RAWM_BRIDGE;
+if (typeof module !== 'undefined' && module.exports) module.exports = RAWM_BRIDGE;</script>
+<script>/* ─────────────────────────────────────────────────────────────────────
    RAWM HID transport
    Reconstructed from the vendor bundle (library.min.js, build 2026-06-01)
    and the public device catalogue. Covers the mouse "CMD" protocol used
@@ -1295,6 +1781,40 @@ react-is/cjs/react-is.production.min.js:
 
 const RAWM = (() => {
   const VENDOR_ID = 0x1915;
+
+  const Bridge = typeof RAWM_BRIDGE !== 'undefined' ? RAWM_BRIDGE : null;
+
+  /* One facade for both transports: native WebHID where the browser has it,
+     and the local bridge daemon (Firefox, Safari) everywhere else. Both hand
+     back HIDDevice-shaped objects, so the protocol code below does not care. */
+  const HID = {
+    get native() {
+      return typeof navigator !== 'undefined' && !!navigator.hid;
+    },
+    get supported() {
+      return HID.native || !!Bridge;
+    },
+    get backend() {
+      return HID.native ? 'webhid' : (Bridge ? 'bridge' : 'none');
+    },
+    async devices() {
+      if (HID.native) {
+        try { return await navigator.hid.getDevices(); } catch { return []; }
+      }
+      if (Bridge) {
+        try { return await Bridge.getDevices(); } catch { return []; }
+      }
+      return [];
+    },
+    async request() {
+      if (HID.native) {
+        const devices = await navigator.hid.requestDevice({ filters: [{ vendorId: VENDOR_ID }] });
+        return devices || [];
+      }
+      if (Bridge) return Bridge.request();
+      throw new Error('No HID transport is available in this browser.');
+    },
+  };
 
   const CMD = {
     QUERY: 0x1,
@@ -1403,20 +1923,24 @@ const RAWM = (() => {
     }
 
     static get supported() {
-      return typeof navigator !== 'undefined' && !!navigator.hid;
+      return HID.supported;
+    }
+
+    static get backend() {
+      return HID.backend;
+    }
+
+    static get native() {
+      return HID.native;
     }
 
     static async authorised() {
-      if (!Transport.supported) return [];
-      try { return await navigator.hid.getDevices(); } catch { return []; }
+      return HID.devices();
     }
 
     static async request() {
-      if (!Transport.supported) throw new Error('WebHID is not available in this browser.');
-      const devices = await navigator.hid.requestDevice({
-        filters: [{ vendorId: VENDOR_ID }],
-      });
-      return devices || [];
+      if (!Transport.supported) throw new Error('No HID transport is available in this browser.');
+      return HID.request();
     }
 
     async connect(hidDevice, profile) {
@@ -1451,7 +1975,13 @@ const RAWM = (() => {
       // Pick the actual output report from the descriptor. Receivers and
       // keyboards are not always 64-byte reports; writing the wrong length
       // makes Chrome reject the report.
-      if (!this.hs) {
+      if (!this.hs && hidDevice.bridge) {
+        // The bridge cannot read the HID report descriptor, so fall back to the
+        // catalogue's report length and let sendReport() retry 64 -> 32 when
+        // the device rejects the write.
+        this.reportLength = Number(profile && profile.report_len) || 64;
+        this.log('info', `bridge transport · output report ${this.reportId}/${this.reportLength}B`);
+      } else if (!this.hs) {
         const outputs = [];
         const features = [];
         for (const collection of hidDevice.collections || []) {
@@ -1480,7 +2010,7 @@ const RAWM = (() => {
           this.log('info', `no output report - trying feature report ${this.reportId}/${this.reportLength}B`);
         } else {
           this.noOutput = true;
-          this.log('err', 'this HID interface has no output or feature reports; Chrome cannot write to it');
+          this.log('err', 'this HID interface has no output or feature reports; the browser cannot write to it');
           this.emit('nooutput', null);
           return;
         }
@@ -2138,10 +2668,10 @@ const RAWM = (() => {
     }
 
     async reconnect() {
-      if (!this.profile || !navigator.hid) return false;
+      if (!this.profile) return false;
       const profile = this.profile;
-      const devices = await navigator.hid.getDevices();
-      const device = devices.find((d) => d.vendorId === VENDOR_ID && Number(d.productId) === Number(profile.product_id));
+      const devices = await HID.devices();
+      const device = devices.find((d) => Number(d.vendorId) === VENDOR_ID && Number(d.productId) === Number(profile.product_id));
       if (!device) return false;
       await this.connect(device, profile);
       return true;
@@ -2153,7 +2683,7 @@ const RAWM = (() => {
     }
   }
 
-  return { VENDOR_ID, CMD, CFG, ACTION, NOTIFY, LED, Transport, crc16, frame, hex };
+  return { VENDOR_ID, CMD, CFG, ACTION, NOTIFY, LED, HID, Transport, crc16, frame, hex };
 })();</script>
 <script>/* Lightweight i18n layer.
    Translates English text nodes and a few attributes in place, so the existing
@@ -2412,9 +2942,11 @@ const RAWM = (() => {
     logOpen: false,
     busy: false,
     fwSwitching: false,
+    bridgeProblem: null,
   };
 
   const transport = new RAWM.Transport((dir, msg) => addLog(dir, msg));
+  if (window.RAWM_BRIDGE) window.RAWM_BRIDGE.setLog((dir, msg) => addLog(dir, msg));
 
   const DEFAULTS = {
     cpiX: 1600, cpiY: 1600, xy: false,
@@ -2520,7 +3052,7 @@ const RAWM = (() => {
       `- Device: ${device}`,
       `- Browser: ${browser}`,
       '',
-      '**WebHID console log**',
+      '**HID console log**',
       '<!-- Open the terminal button in the header, reproduce the problem, then paste the log here. -->', '',
     ].join('\n');
     return `${REPO_URL}/issues/new?title=${encodeURIComponent('[Bug] ')}&body=${encodeURIComponent(body)}`;
@@ -2709,36 +3241,75 @@ const RAWM = (() => {
     </div>`;
   }
 
+  /* ── Bridge panel (Firefox, Safari) ─────────────────────────────────── */
+
+  const BRIDGE_RELEASES = 'https://github.com/thinhphoenix/better-rawmhub/releases/latest';
+
+  function bridgePlatform() {
+    const ua = navigator.userAgent || '';
+    if (/Mac/i.test(ua)) return 'macOS';
+    if (/Win/i.test(ua)) return 'Windows';
+    return 'Linux';
+  }
+
+  function bridgePanel() {
+    if (RAWM.Transport.backend !== 'bridge') return '';
+    const problem = state.bridgeProblem;
+    const port = (window.RAWM_BRIDGE && window.RAWM_BRIDGE.PORT) || 47311;
+    const headline = problem === 'down'
+      ? 'The bridge is not running.'
+      : problem === 'pair'
+        ? 'Pair this page with the bridge.'
+        : 'This browser has no WebHID — install the bridge once.';
+    return `
+      <div class="notice${problem ? ' warn' : ''}" style="margin-top:14px">
+        ${icon(problem ? 'alert' : 'info')}
+        <div>
+          <strong>${headline}</strong>
+          <p class="help" style="margin-top:6px">Firefox and Safari reach the device through <span class="mono">better-rawmhub-bridge</span>, a small local daemon on <span class="mono">127.0.0.1:${port}</span>. Start it, then press Connect again. Nothing is installed inside the browser and no account is needed.</p>
+          <div class="row wrap" style="margin-top:10px">
+            <a class="btn btn-ghost btn-sm" href="${BRIDGE_RELEASES}" target="_blank" rel="noopener">${icon('download')}<span>Download for ${bridgePlatform()}</span></a>
+            <button class="btn btn-ghost btn-sm" data-action="bridge-retry">${icon('refresh')}<span>Try again</span></button>
+            ${problem === 'pair' ? `<button class="btn btn-primary btn-sm" data-action="bridge-pair-open">${icon('link')}<span>Enter code</span></button>` : ''}
+            <button class="btn btn-ghost btn-sm" data-action="bridge-forget">${icon('x')}<span>Forget pairing</span></button>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function connectView() {
     const support = RAWM.Transport.supported;
+    const blocked = location.protocol === 'file:';
+    const native = RAWM.Transport.native;
     const hero = byProduct('234a') || devices.find((d) => d.kind === 'mouse') || null;
     const counts = {
       mice: devices.filter((d) => d.kind === 'mouse').length,
       keyboards: devices.filter((d) => d.kind === 'keyboard').length,
     };
     return `
-    ${pageHead('WebHID configurator', 'Your gear, <span style="color:var(--accent)">dialed in</span>.',
-      'Tune sensitivity, polling, lighting and key maps from the browser. Settings are written straight to the device — no driver, no installer, no account.',
+    ${pageHead('Browser configurator', 'Your gear, <span style="color:var(--accent)">dialed in</span>.',
+      'Tune sensitivity, polling, lighting and key maps from the browser. Settings are written straight to the device — no account, no vendor software.',
       `<span class="pill">${counts.mice} mice · ${counts.keyboards} keyboards</span>`)}
 
     <div class="connect-solo">
       <section class="card connect-card">
         <div class="connect-stage">
-          <div class="stage-tags"><span class="tag accent"><span class="dot on"></span>READY</span><span class="tag">WEBHID</span></div>
+          <div class="stage-tags"><span class="tag accent"><span class="dot on"></span>READY</span><span class="tag">${native ? 'WEBHID' : 'BRIDGE'}</span></div>
           ${img(hero ? productImage(hero) : '', 'device-render', hero ? hero.title : 'RAWM mouse')}
         </div>
         <div class="connect-copy">
           <h2>Connect your device</h2>
-          <p>Turn the mouse on and switch to <strong style="color:var(--text);font-weight:500">2.4 GHz</strong>, or plug it in with a USB cable. Then pick it from the browser prompt — Chromium browsers only.</p>
+          <p>Turn the mouse on and switch to <strong style="color:var(--text);font-weight:500">2.4 GHz</strong>, or plug it in with a USB cable. Then press Connect — Chrome and Edge ask you to pick the device, the bridge picks the RAWM interface for you.</p>
           <div class="row wrap">
-            <button class="btn btn-primary btn-lg" data-action="connect" ${support ? '' : 'disabled'}>
+            <button class="btn btn-primary btn-lg" data-action="connect" ${support && !blocked ? '' : 'disabled'}>
               ${icon('link')}<span>Connect device</span>
             </button>
           </div>
-          ${!support ? `<div class="browser-note">${icon('alert')}<span>This browser has no WebHID support. Use Chrome or Edge on desktop over <span class="mono">https://</span> or <span class="mono">localhost</span>.</span></div>` : ''}
+          ${blocked ? `<div class="browser-note">${icon('alert')}<span>This page was opened from disk. Serve it over <span class="mono">http://localhost</span> or <span class="mono">https://</span> first.</span></div>` : ''}
+          ${bridgePanel()}
           <div class="checklist">
             <div class="check-row"><span class="cr-n">1</span><span>Switch the device to <strong>2.4 GHz</strong>, or connect it with a USB cable.</span></div>
-            <div class="check-row"><span class="cr-n">2</span><span>Choose the RAWM device in the browser's device picker.</span></div>
+            <div class="check-row"><span class="cr-n">2</span><span>Choose the RAWM device${native ? " in the browser's device picker" : ' — the bridge lists them'}</span></div>
             <div class="check-row"><span class="cr-n">3</span><span>Wait for the handshake — the console logs every packet.</span></div>
           </div>
         </div>
@@ -3580,14 +4151,14 @@ const RAWM = (() => {
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>What Better RAWM Hub is</h2><p>Community rebuild of the vendor web configurator</p></div></div><span class="pill accent">OPEN SOURCE</span></div>
         <div class="card-body">
-          <p class="help">Better RAWM Hub is a free, open-source alternative to the RAWM HUB desktop software. It talks to the device over WebHID straight from Chrome or Edge, so DPI stages, polling rate, lift-off distance, angle tuning, motion sync, lighting, button mapping, advanced keys and macros can be changed without installing anything. Every change is written to the mouse and stored in its onboard memory.</p>
+          <p class="help">Better RAWM Hub is a free, open-source alternative to the RAWM HUB desktop software. It talks to the device straight from the browser — WebHID in Chrome and Edge, or the small <span class="mono">better-rawmhub-bridge</span> daemon in Firefox and Safari — so DPI stages, polling rate, lift-off distance, angle tuning, motion sync, lighting, button mapping, advanced keys and macros can be changed without installing vendor software. Every change is written to the mouse and stored in its onboard memory.</p>
           <p class="help" style="margin-top:10px">RAWM HUB Web is also known as free RAWM mouse software that runs directly in the browser: adjust DPI, polling rate, lighting, key mapping and macros without installing anything.</p>
           <div class="kv" style="margin-top:14px"><span class="k">Installer</span><span class="v">None — runs in the browser</span></div>
           <div class="kv"><span class="k">Account</span><span class="v">Not required</span></div>
           <div class="kv"><span class="k">Telemetry</span><span class="v">None</span></div>
           <div class="kv"><span class="k">Price</span><span class="v good">Free · open source</span></div>
-          <div class="kv"><span class="k">Browser</span><span class="v">Chrome / Edge 89+</span></div>
-          <div class="kv"><span class="k">Device access</span><span class="v">${RAWM.Transport.supported ? 'WebHID · Vendor ID 0x1915' : 'WebHID unavailable'}</span></div>
+          <div class="kv"><span class="k">Browser</span><span class="v">${RAWM.Transport.native ? 'Chrome / Edge 89+' : 'Firefox / Safari · bridge'}</span></div>
+          <div class="kv"><span class="k">Device access</span><span class="v">${RAWM.Transport.native ? 'WebHID · Vendor ID 0x1915' : 'Bridge · Vendor ID 0x1915'}</span></div>
         </div>
       </section>
 
@@ -3632,7 +4203,7 @@ const RAWM = (() => {
       <section class="card">
         <div class="card-head"><div class="ch-title">${icon('bug')}<div><h2>Report the app</h2><p>Bugs and feature requests go to GitHub Issues</p></div></div></div>
         <div class="card-body">
-          <p class="help">The issue opens pre-filled with your app version, browser and connected device. For device bugs, paste the WebHID console log too.</p>
+          <p class="help">The issue opens pre-filled with your app version, browser and connected device. For device bugs, paste the HID console log too.</p>
           <div class="row" style="margin-top:14px;flex-wrap:wrap">
             <a class="btn btn-primary btn-sm" href="${issueLink('bug')}" target="_blank" rel="noopener">${icon('bug')}<span>Report a bug</span></a>
             <a class="btn btn-ghost btn-sm" href="${issueLink('feature')}" target="_blank" rel="noopener">${icon('plus')}<span>Request a feature</span></a>
@@ -3867,10 +4438,15 @@ const RAWM = (() => {
     try {
       const picked = await RAWM.Transport.request();
       if (!picked.length) { state.busy = false; return; }
+      state.bridgeProblem = null;
       const pid = Number(picked[0].productId).toString(16).padStart(4, '0');
       const authorised = await RAWM.Transport.authorised();
       const pool = [...picked, ...authorised.filter((d) => Number(d.productId) === Number(picked[0].productId))];
-      const writable = pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
+      // WebHID can expose several collections per product; pick the one that
+      // can be written to. The bridge already sorts vendor interfaces first.
+      const writable = picked[0].bridge
+        ? picked[0]
+        : pool.find((d) => (d.collections || []).some((c) => (c.outputReports || []).length > 0 || (c.featureReports || []).length > 0));
       const hid = writable || picked[0];
       addLog('info', `HID candidates: ${pool.map((d) => `${d.productName || 'device'} (${(d.collections || []).length} collections)`).join(' · ')}`);
       const known = byProduct(pid);
@@ -3904,12 +4480,29 @@ const RAWM = (() => {
       state.cfg = null;
       if (err && err.name === 'NotFoundError') {
         toast('No device selected', 'err');
+      } else if (err && err.code === 'pair-required') {
+        state.bridgeProblem = 'pair';
+        addLog('err', 'bridge: this page is not paired yet');
+        openBridgePair();
+      } else if (err && err.code === 'no-daemon') {
+        state.bridgeProblem = 'down';
+        if (location.protocol === 'file:') {
+          toast('Serve this page over http(s) — a file:// page cannot reach the bridge', 'err');
+        } else {
+          toast('Bridge not running — start better-rawmhub-bridge, then try again', 'err');
+        }
+        addLog('err', `bridge unavailable: ${err.message}`);
+      } else if (err && err.code === 'no-device') {
+        toast('No RAWM device found — check 2.4 GHz mode or the cable', 'err');
+        addLog('err', err.message);
+      } else if (err && err.code === 'device-busy') {
+        toast('Another tab already has this device open', 'err');
       } else if (err && err.name === 'SecurityError') {
         toast('Permission was blocked by the browser', 'err');
         addLog('err', err.message);
       } else if (location.protocol === 'file:') {
-        toast('WebHID needs localhost or https:// — serve the folder first', 'err');
-        addLog('err', 'file:// origin cannot use WebHID; run python -m http.server 8080');
+        toast('The device needs localhost or https:// — serve the folder first', 'err');
+        addLog('err', 'file:// origin cannot reach the device; run python -m http.server 8080');
       } else {
         toast(err.message || 'Could not open device', 'err');
         addLog('err', String((err && err.message) || err));
@@ -4024,9 +4617,9 @@ const RAWM = (() => {
     state.logOpen = true;
     const root = $('#modal-root');
     root.innerHTML = `<div class="modal-scrim" data-close="1">
-      <div class="modal" role="dialog" aria-modal="true" aria-label="WebHID console">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="HID console">
         <div class="modal-head">
-          <div class="row" style="gap:9px">${icon('terminal')}<h3>WebHID console</h3><span class="pill ${state.connected ? 'accent' : ''}"><span class="dot ${state.connected ? 'on' : ''}"></span>${state.connected ? 'LIVE' : 'IDLE'}</span></div>
+          <div class="row" style="gap:9px">${icon('terminal')}<h3>HID console</h3><span class="pill ${state.connected ? 'accent' : ''}"><span class="dot ${state.connected ? 'on' : ''}"></span>${state.connected ? 'LIVE' : 'IDLE'}</span></div>
           <button class="icon-btn" data-action="close-log" aria-label="Close">${icon('x')}</button>
         </div>
         <div class="modal-body">
@@ -4051,6 +4644,65 @@ const RAWM = (() => {
   function closeLog() {
     state.logOpen = false;
     $('#modal-root').innerHTML = '';
+  }
+
+  function closeModal() {
+    state.logOpen = false;
+    $('#modal-root').innerHTML = '';
+  }
+
+  /* ── Bridge pairing ────────────────────────────────────────────────── */
+
+  function openBridgePair() {
+    const root = $('#modal-root');
+    const port = (window.RAWM_BRIDGE && window.RAWM_BRIDGE.PORT) || 47311;
+    root.innerHTML = `<div class="modal-scrim" data-close="1">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Pair with the bridge">
+        <div class="modal-head">
+          <div class="row" style="gap:9px">${icon('link')}<h3>Pair with the bridge</h3></div>
+          <button class="icon-btn" data-action="close-modal" aria-label="Close">${icon('x')}</button>
+        </div>
+        <div class="modal-body">
+          <p class="help">The bridge printed a six-digit code in its window. Type it here once — this browser is remembered after that.</p>
+          <input class="input" id="bridge-code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"
+            style="margin-top:12px;letter-spacing:.35em;font-family:'JetBrains Mono',monospace;font-size:20px;text-align:center" />
+          <p class="help" id="bridge-pair-error" style="color:var(--danger);margin-top:8px"></p>
+        </div>
+        <div class="modal-foot">
+          <span class="help">127.0.0.1:${port}</span>
+          <div class="row">
+            <button class="btn btn-ghost btn-sm" data-action="close-modal">Cancel</button>
+            <button class="btn btn-primary btn-sm" data-action="bridge-pair">Pair</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    const input = $('#bridge-code');
+    if (input) {
+      input.focus();
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') pairBridge(); });
+    }
+  }
+
+  async function pairBridge() {
+    const input = $('#bridge-code');
+    const error = $('#bridge-pair-error');
+    const code = ((input && input.value) || '').replace(/\D/g, '');
+    if (code.length !== 6) {
+      if (error) error.textContent = 'Enter the six-digit code shown by the bridge.';
+      return;
+    }
+    if (!window.RAWM_BRIDGE) return;
+    try {
+      await window.RAWM_BRIDGE.pair(code);
+      closeModal();
+      state.bridgeProblem = null;
+      toast('Paired with the bridge', 'ok');
+      connectDevice();
+    } catch (err) {
+      if (error) error.textContent = (err && err.message) || 'Pairing failed.';
+      addLog('err', `bridge pairing: ${(err && err.message) || 'failed'}`);
+    }
   }
 
   /* ── Toasts ────────────────────────────────────────────────────────── */
@@ -4441,6 +5093,16 @@ const RAWM = (() => {
 
       case 'open-log': openLog(); break;
       case 'close-log': closeLog(); break;
+      case 'close-modal': closeModal(); break;
+      case 'bridge-pair': pairBridge(); break;
+      case 'bridge-pair-open': openBridgePair(); break;
+      case 'bridge-retry': connectDevice(); break;
+      case 'bridge-forget':
+        if (window.RAWM_BRIDGE) window.RAWM_BRIDGE.forget();
+        state.bridgeProblem = null;
+        render();
+        toast('Pairing forgotten — the next connect asks for a code', 'info');
+        break;
       case 'clear-log': state.log = []; renderLog(); break;
       case 'copy-log': {
         const text = state.log.map((l) => `${l.t.toISOString()} ${l.dir.toUpperCase()} ${l.msg}`).join('\n');
@@ -4671,8 +5333,8 @@ const RAWM = (() => {
 
     render();
     loadStarCount();
-    addLog('info', 'RAWM HUB 2.0 · WebHID ' + (RAWM.Transport.supported ? 'available' : 'unavailable'));
-    if (!RAWM.Transport.supported) addLog('err', 'navigator.hid missing — use Chrome or Edge');
+    addLog('info', `RAWM HUB 2.0 · ${RAWM.Transport.native ? 'WebHID' : 'bridge'} ${RAWM.Transport.supported ? 'available' : 'unavailable'}`);
+    if (!RAWM.Transport.supported) addLog('err', 'no HID transport — use Chrome/Edge, or install better-rawmhub-bridge');
   }
 
   window.addEventListener('hashchange', () => {

@@ -49,7 +49,7 @@ __GOOGLE_VERIFICATION__
       "applicationCategory": "UtilitiesApplication",
       "applicationSubCategory": "Mouse and keyboard configuration",
       "operatingSystem": "Windows, macOS, Linux, ChromeOS",
-      "browserRequirements": "Chrome or Edge 89+ with WebHID",
+      "browserRequirements": "Chrome or Edge 89+ with WebHID, or Firefox and Safari with the better-rawmhub-bridge daemon",
       "url": "__SITE_URL__/",
       "description": "Free, open-source alternative to the RAWM HUB desktop software. Configure DPI stages, polling rate, lighting, buttons, advanced keys and macros for RAWM mice and keyboards directly in the browser.",
       "isAccessibleForFree": true,
@@ -82,7 +82,7 @@ __GOOGLE_VERIFICATION__
     <h1>Better RAWM Hub</h1>
     <p>Better RAWM Hub is a free browser-based configurator and alternative to the RAWM HUB desktop software for RAWM mice and keyboards. It configures DPI stages, polling rate, lift-off distance, lighting, button mapping and macros over WebHID in Chrome or Edge.</p>
     <p>Open-source repository and issue tracker: <a href="https://github.com/thinhphoenix/better-rawmhub">github.com/thinhphoenix/better-rawmhub</a>.</p>
-    <p>This page needs JavaScript and a Chromium browser with WebHID support.</p>
+    <p>This page needs JavaScript. Use Chrome or Edge with WebHID, or Firefox and Safari with the better-rawmhub-bridge daemon.</p>
   </div>
 </noscript>
 
@@ -152,7 +152,7 @@ __GOOGLE_VERIFICATION__
           <option value="0">FW · STANDARD</option>
           <option value="1">FW · GAMING</option>
         </select>
-        <button class="icon-btn" data-action="open-log" title="WebHID console" aria-label="Open WebHID console">
+        <button class="icon-btn" data-action="open-log" title="HID console" aria-label="Open HID console">
           <svg class="ic"><use href="#i-terminal"/></svg>
         </button>
       </div>
@@ -166,6 +166,7 @@ __GOOGLE_VERIFICATION__
 
 <script type="application/json" id="catalogue">__CATALOGUE__</script>
 <script>__ANT_LIB__</script>
+<script>__BRIDGE__</script>
 <script>__HID__</script>
 <script>__I18N__</script>
 <script>__APP__</script>

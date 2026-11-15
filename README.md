@@ -5,7 +5,8 @@ A browser-native configurator for RAWM mice and keyboards, rebuilt from
 features of the original hub, uses the layout language of
 [control.openmouse.app](https://control.openmouse.app) and
 [hub.atk.pro](https://hub.atk.pro), and talks to real hardware over WebHID
-(vendor `0x1915`). There is no demo mode.
+(vendor `0x1915`) — or, in Firefox and Safari, through the small
+[local bridge](bridge/README.md). There is no demo mode.
 
 The deliverable is a **single self-contained `index.html`** with React, Ant
 Design, fonts, icons and product renders inlined. No runtime CDN, no build step
@@ -26,8 +27,9 @@ npm start          # builds nothing, starts the server and opens Chrome
 npm run serve      # server only, no browser launch
 ```
 
-Open <http://localhost:8080>. Use **Chrome or Edge** on desktop; WebHID is not
-available in Safari or Firefox.
+Open <http://localhost:8080>. Use **Chrome or Edge** on desktop, or **Firefox and
+Safari** with the [bridge](bridge/README.md) running — WebHID itself is not
+available in either of them.
 
 `npm start -- --no-open` keeps the server running without opening a window, and
 falls back to the default browser when Chrome is not installed.
@@ -94,6 +96,34 @@ The transport was reconstructed from the vendor bundle (`library.min.js`, build
 
 The packet layout notes live at the top of `src/hid.js`.
 
+## Firefox and Safari: the bridge
+
+Neither browser ships WebHID, and Mozilla's standards position on it is
+negative, so the page talks to a small local daemon instead:
+
+```
+Firefox / Safari ──ws://127.0.0.1:47311──▶ better-rawmhub-bridge ──HID──▶ RAWM device
+```
+
+- `bridge/rust/` is the shipped daemon: one static binary, about 5 MB of RAM, no
+  runtime dependency. It also works in **Chrome and Edge** on locked-down
+  machines where WebHID is disabled by policy.
+- `bridge/reference/` is the earlier Node port of the same protocol, kept for
+  cross-checks. It needs `node-hid`, so it is not what users download.
+- The page picks the transport by itself: `navigator.hid` when the browser has
+  it, the bridge otherwise. Nothing in the device protocol changes.
+- The daemon binds loopback only, allowlists the page origin, and asks for a
+  six-digit pairing code once per origin. It only ever lists vendor `0x1915`
+  devices. Details and the wire protocol: [`bridge/README.md`](bridge/README.md).
+
+Install, options and troubleshooting live in that file. Quick start:
+
+```bash
+npm run bridge:build     # cargo build --release
+npm run bridge:rust      # run the daemon
+npm run bridge:live      # connect, list devices, send a QUERY (real hardware)
+```
+
 ## Project layout
 
 ```
@@ -102,7 +132,8 @@ public/index.html        same build, ready for Cloudflare Pages
 src/template.html        shell, header, favicon reference
 src/styles.css           design system (blue, flat, dark)
 src/ant-controls.js      real antd Button / Switch / Select / Slider / Segmented
-src/hid.js               WebHID transport, framing, CRC, config packets
+src/bridge.js            page-side WebSocket client for the local bridge
+src/hid.js               HID transport (WebHID + bridge), framing, CRC, config packets
 src/app.js               views, state, auto-apply, interactions, router
 src/catalogue.json       device catalogue (36 entries, vendor data)
 assets/ant.js            React + antd bundle (inlined by the build)
@@ -116,8 +147,15 @@ tools/build.mjs          inlines CSS, JS, JSON, images, icons and favicon
 tools/start.mjs          local server + Chrome launcher
 tools/release.mjs        bump patch, build, deploy, commit, push
 tools/test-transport.mjs framing, CRC and receiver-routing tests
+tools/test-bridge.mjs    bridge adapter, report-id shape and transport-selection tests
 tools/recolor-logo.mjs   recolours the logo bolt to #3b82f6
 tools/fetch-products.mjs downloads per-model renders into assets/products/
+bridge/rust/             the shipped bridge daemon (Rust + hidapi)
+bridge/reference/        Node port of the same protocol, for cross-checks
+bridge/tools/live-test.mjs  talks to a running bridge with a real device
+bridge/install.ps1       Windows installer (per user, optional autostart)
+bridge/install.command   macOS installer (copies the binary, clears quarantine)
+bridge/linux/*.rules     udev rule for Linux
 reference/               vendor bundle and catalogue used for research (ignored)
 wrangler.toml            Cloudflare Pages project config
 shots/                   README screenshots
@@ -127,7 +165,8 @@ Rebuild after editing anything in `src/`:
 
 ```bash
 npm run build                    # bundles antd, then inlines everything
-node tools/test-transport.mjs    # 7 framing / CRC / routing checks
+npm test                         # 10 transport checks + 7 bridge checks
+npm run bridge:test              # Rust origin / host / token rules
 ```
 
 Product renders load from the vendor hub at
