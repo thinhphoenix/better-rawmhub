@@ -42,8 +42,8 @@ falls back to the default browser when Chrome is not installed.
 | Lighting | Loop / Customize / DPI-level modes, colour palette, brightness/speed, glass mode, per-zone switches, per-key painting for keyboards |
 | Advanced keys | SOCD, tap-hold (MT), rapid-trigger priority (RS) and dynamic keystroke (DKS) editors |
 | Macros | Macro library, action timeline, delay editing and capture |
-| Firmware | Revision, channel report, vendor updater hand-off and factory reset. Changing the channel writes it, reboots the device and disconnects, so you connect again manually |
-| Downloads | Official desktop / Android / iOS builds and local-run instructions |
+| Firmware | Revision, channel report, vendor hand-off and factory reset. Changing the channel writes it, reboots the device and disconnects, so you connect again manually |
+| About | What the project is, requirements, credits and links to the official RAWM HUB installers, web tool and download center. The page hosts no downloads |
 | Console | Live WebHID packet log (TX/RX), copyable for debugging |
 | Language | English, Vietnamese, Chinese, Japanese, Thai, Korean and Spanish; flag picker in the header, choice saved locally |
 

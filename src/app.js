@@ -178,6 +178,10 @@
   };
   const MOUSE_FN = { M1: 'Left click', M2: 'Right click', M3: 'Middle click', M4: 'Back', M5: 'Forward', M6: 'DPI cycle', M7: 'Onboard profile' };
   const REPO_URL = 'https://github.com/thinhphoenix/better-rawmhub';
+  /* Vendor pages: installers, firmware and the original web tool live here. */
+  const VENDOR_HUB = 'https://www.rawmtech.com/hub3.html';
+  const VENDOR_WEB = 'https://www.rawmtech.com/hub.html';
+  const VENDOR_DOWNLOADS = 'https://www.rawmshop.com/pages/download-center';
 
   function issueLink(kind) {
     const version = (document.querySelector('meta[name="app-version"]') || {}).content || '';
@@ -1187,10 +1191,10 @@
             </div>
             <div class="sr-side"><span class="pill">READ ONLY</span></div>
           </div>
-          <div class="notice" style="margin-top:12px">${icon('info')}<span>Firmware is flashed by the desktop app. This page reports the revision and hands off the download.</span></div>
+          <div class="notice" style="margin-top:12px">${icon('info')}<span>Firmware is flashed by the official desktop app, not from this page. Install it from the vendor hub, flash the device, then come back here to configure it.</span></div>
           <div class="row" style="margin-top:12px">
-            <a class="btn btn-primary btn-sm" href="https://static.miracletek.net/pc/RAWMHUB.zip" target="_blank" rel="noopener">${icon('download')}<span>Get the updater</span></a>
-            <a class="btn btn-ghost btn-sm" href="https://www.rawmtech.com/hub.html" target="_blank" rel="noopener">${icon('link')}<span>Vendor hub</span></a>
+            <a class="btn btn-primary btn-sm" href="${VENDOR_HUB}" target="_blank" rel="noopener">${icon('link')}<span>Get the official app</span></a>
+            <button class="btn btn-ghost btn-sm" data-page="about">${icon('info')}<span>About</span></button>
           </div>
         </div>
       </section>
@@ -1207,40 +1211,48 @@
     </div>`;
   }
 
-  /* ── Downloads ─────────────────────────────────────────────────────── */
-  function downloadsView() {
+  /* ── About ─────────────────────────────────────────────────────────── */
+  function aboutView() {
+    const version = (document.querySelector('meta[name="app-version"]') || {}).content || '';
     return `
-    ${pageHead('Get the app', 'Downloads',
-      'This page is the web configurator. The native apps add firmware flashing and offline device profiles.')}
-    <div class="grid g-2">
+    ${pageHead('About', 'About this project',
+      'An independent, browser-based configurator for RAWM mice and keyboards. No installer, no account, no background service.')}
+
+    <div class="split">
       <section class="card">
-        <div class="card-head"><div class="ch-title">${icon('download')}<div><h2>RAWM HUB</h2><p>Official builds from the vendor</p></div></div></div>
+        <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>What Better RAWM Hub is</h2><p>Community rebuild of the vendor web configurator</p></div></div><span class="pill accent">OPEN SOURCE</span></div>
         <div class="card-body">
-          ${[
-            ['monitor', 'Windows / macOS', 'Desktop app · firmware flashing', 'https://static.miracletek.net/pc/RAWMHUB.zip'],
-            ['chip', 'Android', 'APK · on-the-go configuration', 'https://static.miracletek.net/android/RAWMHUB.apk'],
-            ['mouse', 'iOS / iPadOS', 'App Store · RAWMHUB', 'https://apps.apple.com/cn/app/rawmhub/id1638249393'],
-            ['globe', 'Web', 'You are here · WebHID', '#/device'],
-          ].map(([ic, name, sub, href]) => `
-            <div class="dl-row">
-              <span class="dl-icon">${icon(ic)}</span>
-              <div class="dl-main"><div class="t">${esc(name)}</div><div class="s">${esc(sub)}</div></div>
-              ${href.startsWith('#') ? `<button class="btn btn-ghost btn-sm" data-page="device">Open</button>` : `<a class="btn btn-ghost btn-sm" href="${esc(href)}" target="_blank" rel="noopener">Download</a>`}
-            </div>`).join('')}
+          <p class="help">Better RAWM Hub is a free, open-source alternative to the RAWM HUB desktop software. It talks to the device over WebHID straight from Chrome or Edge, so DPI stages, polling rate, lift-off distance, angle tuning, motion sync, lighting, button mapping, advanced keys and macros can be changed without installing anything. Every change is written to the mouse and stored in its onboard memory.</p>
+          <p class="help" lang="vi" style="margin-top:10px">RAWM HUB Web còn được biết đến như phần mềm chuột RAWM miễn phí chạy trực tiếp trên trình duyệt: chỉnh DPI, polling rate, đèn LED, gán phím và macro mà không cần cài đặt.</p>
+          <div class="kv" style="margin-top:14px"><span class="k">Installer</span><span class="v">None — runs in the browser</span></div>
+          <div class="kv"><span class="k">Account</span><span class="v">Not required</span></div>
+          <div class="kv"><span class="k">Telemetry</span><span class="v">None</span></div>
+          <div class="kv"><span class="k">Price</span><span class="v good">Free · open source</span></div>
+          <div class="kv"><span class="k">Browser</span><span class="v">Chrome / Edge 89+</span></div>
+          <div class="kv"><span class="k">Device access</span><span class="v">${RAWM.Transport.supported ? 'WebHID · Vendor ID 0x1915' : 'WebHID unavailable'}</span></div>
         </div>
       </section>
 
       <section class="card">
-        <div class="card-head"><div class="ch-title">${icon('terminal')}<div><h2>Run this build</h2><p>WebHID needs a secure context</p></div></div></div>
+        <div class="card-head"><div class="ch-title">${icon('link')}<div><h2>Official RAWM HUB</h2><p>Installers and firmware come from the vendor</p></div></div></div>
         <div class="card-body">
-          <p class="help">Open the built page for the UI; hardware access needs <span class="mono">localhost</span> or HTTPS.</p>
-          <pre class="log" style="margin-top:12px;max-height:none">npx serve .
-# or
-python -m http.server 8080</pre>
-          <div class="kv" style="margin-top:10px"><span class="k">Browser</span><span class="v">Chrome / Edge 89+</span></div>
-          <div class="kv"><span class="k">API</span><span class="v">${RAWM.Transport.supported ? 'WebHID available' : 'WebHID unavailable'}</span></div>
-          <div class="kv"><span class="k">Vendor ID</span><span class="v">0x1915</span></div>
-          <div class="notice" style="margin-top:12px">${icon('info')}<span>Product renders and the device catalogue belong to RAWM / Miraclatek and are loaded from their CDN.</span></div>
+          <p class="help">This site does not host the vendor's installers. For firmware flashing, the mobile apps or the original tool, use RAWM's own pages:</p>
+          <div class="dl-row">
+            <span class="dl-icon">${icon('monitor')}</span>
+            <div class="dl-main"><div class="t">Desktop app · Windows / macOS</div><div class="s">Official RAWM HUB v3 · firmware flashing</div></div>
+            <a class="btn btn-ghost btn-sm" href="${VENDOR_HUB}" target="_blank" rel="noopener">rawmtech.com</a>
+          </div>
+          <div class="dl-row">
+            <span class="dl-icon">${icon('globe')}</span>
+            <div class="dl-main"><div class="t">Vendor web configurator</div><div class="s">The original browser tool this project rebuilds</div></div>
+            <a class="btn btn-ghost btn-sm" href="${VENDOR_WEB}" target="_blank" rel="noopener">rawmtech.com</a>
+          </div>
+          <div class="dl-row">
+            <span class="dl-icon">${icon('download')}</span>
+            <div class="dl-main"><div class="t">Download center</div><div class="s">Android APK, iOS app and manuals</div></div>
+            <a class="btn btn-ghost btn-sm" href="${VENDOR_DOWNLOADS}" target="_blank" rel="noopener">rawmshop.com</a>
+          </div>
+          <div class="notice" style="margin-top:12px">${icon('alert')}<span>Firmware updates are not supported here. Flash firmware with the official desktop app first, then configure the device in this page.</span></div>
         </div>
       </section>
     </div>
@@ -1273,12 +1285,13 @@ python -m http.server 8080</pre>
     </div>
 
     <section class="card" style="margin-top:14px">
-      <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>About RAWM HUB Web</h2><p>Browser configurator for RAWM mouse and keyboard software</p></div></div></div>
+      <div class="card-head"><div class="ch-title">${icon('globe')}<div><h2>Credits &amp; disclaimer</h2><p>Unofficial project, not affiliated with RAWM</p></div></div><span class="pill">v${esc(version)}</span></div>
       <div class="card-body">
-        <p class="help">RAWM HUB Web is a free, open-source alternative to the RAWM HUB desktop software for RAWM gaming mice and keyboards. It reads and writes the device configuration directly from Chrome or Edge using WebHID — no installer, no account and no background service. Every settings change is written to the mouse automatically and saved to onboard memory.</p>
-        <p class="help" style="margin-top:10px">Supported controls include DPI stages with per-stage colours, polling rate, lift-off distance, angle tuning, ripple control, motion sync, glass mode, lighting modes and brightness, button remapping, advanced keys and macros for the RAWM devices in the vendor catalogue. The source code is on <a href="${REPO_URL}" target="_blank" rel="noopener" style="color:var(--accent)">GitHub</a> and issues are welcome.</p>
-        <p class="help" lang="vi" style="margin-top:10px">RAWM HUB Web còn được biết đến như phần mềm chuột RAWM miễn phí chạy trực tiếp trên trình duyệt: chỉnh DPI, polling rate, đèn LED, gán phím và macro mà không cần cài đặt.</p>
-        <p class="help" style="margin-top:10px;color:var(--faint)">This is an unofficial community rebuild. RAWM, RAWM HUB and the device renders belong to RAWM / Shenzhen Renmo Electronic Technology.</p>
+        <p class="help">Supported controls include DPI stages with per-stage colours, polling rate, lift-off distance, angle tuning, ripple control, motion sync, glass mode, lighting modes and brightness, button remapping, advanced keys and macros for every device in the vendor catalogue.</p>
+        <p class="help" style="margin-top:10px">This is an unofficial community rebuild, not affiliated with or endorsed by RAWM. RAWM, RAWM HUB and the device renders belong to RAWM / Shenzhen Renmo Electronic Technology; product images and the device catalogue are loaded from the vendor's CDN.</p>
+        <div class="kv" style="margin-top:12px"><span class="k">Vendor</span><a class="v" href="https://www.rawmtech.com/" target="_blank" rel="noopener">rawmtech.com</a></div>
+        <div class="kv"><span class="k">Source</span><a class="v" href="${REPO_URL}" target="_blank" rel="noopener">thinhphoenix/better-rawmhub</a></div>
+        <div class="kv"><span class="k">App version</span><span class="v">v${esc(version)}</span></div>
       </div>
     </section>`;
   }
@@ -1286,8 +1299,10 @@ python -m http.server 8080</pre>
   /* ── Router / shell ────────────────────────────────────────────────── */
   const PAGE_TITLES = {
     device: 'Device', buttons: 'Buttons', performance: 'Performance', lighting: 'Lighting',
-    advanced: 'Advanced keys', macros: 'Macros', firmware: 'Firmware', downloads: 'Downloads',
+    advanced: 'Advanced keys', macros: 'Macros', firmware: 'Firmware', about: 'About',
   };
+  /* The Downloads page became About; keep old hash links working. */
+  const LEGACY_PAGES = { downloads: 'about' };
   const PAGE_GATE = ['device', 'buttons', 'performance', 'lighting', 'advanced', 'macros', 'firmware'];
 
   function render() {
@@ -1302,7 +1317,7 @@ python -m http.server 8080</pre>
       advanced: advancedView,
       macros: macrosView,
       firmware: firmwareView,
-      downloads: downloadsView,
+      about: aboutView,
     }[page] || deviceView)();
 
     $('#view').innerHTML = html;
@@ -1318,9 +1333,10 @@ python -m http.server 8080</pre>
     }
     $('#crumb-section').textContent = PAGE_TITLES[page] || 'Device';
     const tr = window.RAWM_I18N ? window.RAWM_I18N.t : (s) => s;
+    const pageLabel = page === 'device' ? tr('RAWM mouse & keyboard configurator') : tr(PAGE_TITLES[page] || 'Device');
     document.title = state.connected && state.profile
       ? `Better RAWM Hub — ${tr(PAGE_TITLES[page])} · ${state.profile.title}`
-      : `Better RAWM Hub — ${tr('RAWM mouse & keyboard configurator')}`;
+      : `Better RAWM Hub — ${pageLabel}`;
 
     const fw = $('#fw-channel');
     if (fw) fw.value = String((state.cfg && state.cfg.fwChannel) || 0);
@@ -1370,6 +1386,7 @@ python -m http.server 8080</pre>
   }
 
   function go(page) {
+    page = LEGACY_PAGES[page] || page;
     if (!PAGE_TITLES[page]) page = 'device';
     state.page = page;
     state.capturing = false;
@@ -2172,7 +2189,8 @@ python -m http.server 8080</pre>
   /* Boot -------------------------------------------------------------- */
   function boot() {
     const params = new URLSearchParams(location.search);
-    const hash = (location.hash || '').replace('#/', '');
+    const rawHash = (location.hash || '').replace('#/', '');
+    const hash = LEGACY_PAGES[rawHash] || rawHash;
     if (PAGE_TITLES[hash]) state.page = hash;
 
     const langSel = $('#lang-select');
@@ -2184,7 +2202,8 @@ python -m http.server 8080</pre>
   }
 
   window.addEventListener('hashchange', () => {
-    const hash = (location.hash || '').replace('#/', '');
+    const rawHash = (location.hash || '').replace('#/', '');
+    const hash = LEGACY_PAGES[rawHash] || rawHash;
     if (PAGE_TITLES[hash] && hash !== state.page) { state.page = hash; render(); }
   });
 
