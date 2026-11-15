@@ -12,6 +12,33 @@
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   const icon = (name, cls = '') => `<svg class="ic ${cls}"><use href="#i-${name}"/></svg>`;
 
+  /* Battery gauge: five cells filled to the real level, tinted by state.
+     Rendered inline (not from the sprite) so the cells can carry the level. */
+  const BATT_CELLS = 5;
+  const batteryTone = (pct) =>
+    pct == null ? 'var(--faint)' : pct <= 20 ? 'var(--danger)' : pct <= 50 ? 'var(--warn)' : 'var(--ok)';
+
+  function batteryIcon(pct, size = 16) {
+    const known = pct != null && Number.isFinite(Number(pct));
+    const value = known ? clamp(Number(pct), 0, 100) : 0;
+    const filled = known ? Math.ceil((value / 100) * BATT_CELLS) : 0;
+    const tone = batteryTone(known ? value : null);
+    let cells = '';
+    for (let i = 0; i < BATT_CELLS; i++) {
+      cells += `<rect x="${(3.42 + i * 2.44).toFixed(2)}" y="3.6" width="2.2" height="4.8" rx="0.8" fill="${i < filled ? tone : 'rgba(255,255,255,.08)'}"/>`;
+    }
+    const h = (size * 12) / 22;
+    return `<svg class="batt" viewBox="0 0 22 12" width="${size}" height="${h.toFixed(2)}" aria-hidden="true">
+      <rect x="1" y="1.6" width="16.6" height="8.8" rx="2.2" fill="none" stroke="currentColor" stroke-opacity=".38" stroke-width="1.2"/>
+      <rect x="18.6" y="4.3" width="2.2" height="3.4" rx="1" fill="currentColor" fill-opacity=".38"/>
+      ${cells}
+    </svg>`;
+  }
+
+  /* Slot so updateLive() can repaint the gauge when the level changes. */
+  const batterySlot = (pct, size = 14) =>
+    `<span class="batt-slot" data-batt-icon data-batt-size="${size}">${batteryIcon(pct, size)}</span>`;
+
   /* Devices ------------------------------------------------------------ */
   const devices = [];
   const seen = new Set();
@@ -458,7 +485,7 @@
         <div class="rings"><i></i><i></i><i></i></div>
         <div class="stage-tags">
           <span class="tag accent"><span class="dot on"></span>${stateLabel}</span>
-          ${battery != null ? `<span class="tag">${icon('battery')} <span data-live="battery-tag">${battery}%${charging ? ' · charging' : ''}</span></span>` : ''}
+          ${battery != null ? `<span class="tag">${batterySlot(battery, 14)} <span data-live="battery-tag">${battery}%${charging ? ' · charging' : ''}</span></span>` : ''}
         </div>
         ${img(productImage(p), 'hero-img device-render', p.title)}
         <span class="stage-model">${esc(p.title)} ${p.sensor ? '· ' + esc(p.sensor) : ''}</span>
@@ -492,9 +519,9 @@
             <div class="stat-bar"><i data-bar="polling" style="width:${clamp((c.polling / 8000) * 100, 4, 100)}%"></i></div>
           </div>
           <div class="stat">
-            <div class="stat-label"><span>Battery</span>${icon('battery')}</div>
+            <div class="stat-label"><span>Battery</span>${batterySlot(battery, 13)}</div>
             <div class="stat-value"><span data-live="battery">${battery != null ? battery : '—'}</span><small>${battery != null ? '%' + (charging ? ' · chg' : '') : 'wired'}</small></div>
-            <div class="stat-bar"><i data-bar="battery" style="width:${battery != null ? battery : 0}%;${battery != null && battery < 25 ? 'background:var(--danger)' : ''}"></i></div>
+            <div class="stat-bar"><i data-bar="battery" style="width:${battery != null ? battery : 0}%;${battery != null ? 'background:' + batteryTone(battery) : ''}"></i></div>
           </div>
           <div class="stat">
             <div class="stat-label"><span>Profile</span>${icon('chip')}</div>
@@ -861,7 +888,7 @@
       </section>
 
       <section class="card">
-        <div class="card-head"><div class="ch-title">${icon('battery')}<div><h2>Power</h2><p>Sleep and wireless mode</p></div></div></div>
+        <div class="card-head"><div class="ch-title">${batterySlot(state.info && state.info.battery != null ? Number(state.info.battery) : null, 16)}<div><h2>Power</h2><p>Sleep and wireless mode</p></div></div></div>
         <div class="card-body">
           ${rangeRow('Sleep after', 'sleep', c.sleep, 1, 30, 1, ' min')}
           <div class="field" style="margin-top:14px">
@@ -872,8 +899,8 @@
             <p class="help">${esc((p.power_mode_tips && p.power_mode_tips[c.powerMode]) || 'Higher performance uses more battery.')}</p>
           </div>
           <div class="divider"></div>
-          <div class="between"><span class="field-label">Estimated battery</span><span class="mono" style="font-size:11px">${state.info && state.info.battery != null ? state.info.battery + '%' : '—'}</span></div>
-          <div class="stat-bar" style="height:6px;margin-top:9px"><i style="width:${state.info && state.info.battery ? state.info.battery : 0}%"></i></div>
+          <div class="between"><span class="field-label">Estimated battery</span><span class="mono batt-readout">${batterySlot(state.info && state.info.battery != null ? Number(state.info.battery) : null, 13)}<span data-live="battery-pct">${state.info && state.info.battery != null ? state.info.battery + '%' : '—'}</span></span></div>
+          <div class="stat-bar" style="height:6px;margin-top:9px"><i data-bar="battery-power" style="width:${state.info && state.info.battery ? state.info.battery : 0}%;${state.info && state.info.battery != null ? 'background:' + batteryTone(Number(state.info.battery)) : ''}"></i></div>
         </div>
       </section>
 
@@ -1223,7 +1250,7 @@
         <div class="card-head"><div class="ch-title">${icon('info')}<div><h2>What Better RAWM Hub is</h2><p>Community rebuild of the vendor web configurator</p></div></div><span class="pill accent">OPEN SOURCE</span></div>
         <div class="card-body">
           <p class="help">Better RAWM Hub is a free, open-source alternative to the RAWM HUB desktop software. It talks to the device over WebHID straight from Chrome or Edge, so DPI stages, polling rate, lift-off distance, angle tuning, motion sync, lighting, button mapping, advanced keys and macros can be changed without installing anything. Every change is written to the mouse and stored in its onboard memory.</p>
-          <p class="help" lang="vi" style="margin-top:10px">RAWM HUB Web còn được biết đến như phần mềm chuột RAWM miễn phí chạy trực tiếp trên trình duyệt: chỉnh DPI, polling rate, đèn LED, gán phím và macro mà không cần cài đặt.</p>
+          <p class="help" style="margin-top:10px">RAWM HUB Web is also known as free RAWM mouse software that runs directly in the browser: adjust DPI, polling rate, lighting, key mapping and macros without installing anything.</p>
           <div class="kv" style="margin-top:14px"><span class="k">Installer</span><span class="v">None — runs in the browser</span></div>
           <div class="kv"><span class="k">Account</span><span class="v">Not required</span></div>
           <div class="kv"><span class="k">Telemetry</span><span class="v">None</span></div>
@@ -1346,7 +1373,7 @@
       const battery = state.info && Number.isFinite(Number(state.info.battery)) ? Number(state.info.battery) : null;
       const stateLabel = state.handshake === 'ready' ? 'CONNECTED' : state.handshake === 'timeout' ? 'NO REPLY' : 'CONNECTING';
       pill.innerHTML = state.connected
-        ? `<span class="dot on"></span><span>${stateLabel}${battery != null ? ' · ' + battery + '%' : ''}</span>`
+        ? `<span class="dot on"></span><span>${stateLabel}</span>${battery != null ? `<span class="pill-batt">${batterySlot(battery, 12)}<span>${battery}%</span></span>` : ''}`
         : `<span class="dot"></span><span>NO DEVICE</span>`;
     }
 
@@ -1360,19 +1387,22 @@
     if (window.__antMount) window.__antMount();
   }
 
+  let railBattery = null;
+
   function renderRailDevice() {
     const el = $('#rail-device');
     if (!el) return;
-    if (!state.connected || !state.profile) { el.innerHTML = ''; return; }
+    if (!state.connected || !state.profile) { el.innerHTML = ''; railBattery = null; return; }
     const p = state.profile;
     const battery = state.info && state.info.battery != null ? state.info.battery : null;
+    railBattery = battery;
     el.innerHTML = `<button class="mini-device" data-page="device" style="width:100%;text-align:left" title="${esc(p.title)}">
       ${img(productImage(p), 'device-render', p.title)}
       <span style="min-width:0">
         <span class="md-name" style="display:block">${esc(p.title)}</span>
         <span class="md-sub"><span class="dot on"></span>${state.handshake === 'ready' ? 'CONNECTED' : state.handshake === 'timeout' ? 'NO REPLY' : 'CONNECTING'}</span>
       </span>
-      <span class="md-batt">${battery != null ? battery + '%' : ''}</span>
+      <span class="md-batt">${battery != null ? `${batterySlot(Number(battery), 14)}<span>${battery}%</span>` : ''}</span>
     </button>`;
   }
 
@@ -1707,6 +1737,12 @@
     $$('[data-live="battery-tag"]').forEach((el) => {
       el.textContent = battery != null ? `${battery}%${charging ? ' · charging' : ''}` : 'wired';
     });
+    $$('[data-live="battery-pct"]').forEach((el) => { el.textContent = battery != null ? `${battery}%` : '—'; });
+    /* Repaint every gauge with the new level, keeping each slot's own size. */
+    $$('[data-batt-icon]').forEach((el) => {
+      el.innerHTML = batteryIcon(battery, Number(el.dataset.battSize) || 14);
+    });
+    if (battery !== railBattery) renderRailDevice();
     const batteryUnit = $('[data-live="battery"]') && $('[data-live="battery"]').nextElementSibling;
     if (batteryUnit) batteryUnit.textContent = battery != null ? '%' + (charging ? ' · chg' : '') : 'wired';
 
@@ -1717,7 +1753,8 @@
     });
     setBar('cpi', (c.cpiX / ((p.cpi_range && p.cpi_range[1]) || 30000)) * 100);
     setBar('polling', (c.polling / 8000) * 100);
-    if ($('[data-bar="battery"]')) setBar('battery', battery || 0, battery != null && battery < 25 ? 'var(--danger)' : '');
+    if ($('[data-bar="battery"]')) setBar('battery', battery || 0, battery != null ? batteryTone(battery) : '');
+    if ($('[data-bar="battery-power"]')) setBar('battery-power', battery || 0, battery != null ? batteryTone(battery) : '');
     if ($('[data-bar="profile"]')) setBar('profile', (((c.onboard | 0) + 1) / (c.onboardMax || 5)) * 100);
 
     $$('.dpi-stage[data-index]').forEach((el) => {

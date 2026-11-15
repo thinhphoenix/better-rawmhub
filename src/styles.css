@@ -17,6 +17,7 @@
   --accent-ink: #ffffff;
   --warn: #f2b25c;
   --danger: #ff6f6f;
+  --ok: #4ade80;
   --radius: 8px;
   --radius-sm: 5px;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -136,7 +137,7 @@ img.device-render.is-loaded { background-image: none; }
 .mini-device img { width: 34px; height: 34px; object-fit: contain; }
 .mini-device .md-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-device .md-sub { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; color: var(--faint); letter-spacing: 0.04em; }
-.mini-device .md-batt { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.mini-device .md-batt { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .dot { width: 5px; height: 5px; border-radius: 99px; background: var(--faint); flex: none; }
 .dot.on { background: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
 .rail-meta {
@@ -144,6 +145,12 @@ img.device-render.is-loaded { background-image: none; }
   padding: 0 8px; font-size: 10.5px; color: #454b54;
 }
 .rail-meta .mono { font-size: 9.5px; letter-spacing: 0.04em; }
+
+/* Battery gauge — inline SVG, four cells tinted by level */
+.batt { display: block; flex: none; }
+.batt-slot { display: inline-flex; align-items: center; }
+.pill-batt { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; }
+.batt-readout { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
 
 /* ── Main / topbar ──────────────────────────────────────────────────── */
 .main { min-width: 0; display: flex; flex-direction: column; }
