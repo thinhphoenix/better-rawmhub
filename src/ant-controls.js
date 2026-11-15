@@ -75,7 +75,10 @@
 
   const buttonNode = (el, href) => {
     const cls = el.className || '';
-    const text = el.textContent.trim();
+    // A trailing badge (e.g. the GitHub star count) keeps its own styling: the
+    // plain textContent would lose the separator and the mono font.
+    const badge = el.querySelector('[data-star-count]');
+    const text = (badge ? el.textContent.replace(badge.textContent, '') : el.textContent).trim();
     const props = {
       type: cls.includes('btn-primary') ? 'primary' : 'default',
       danger: cls.includes('btn-danger'),
@@ -94,7 +97,15 @@
         cls.includes('btn-bmc') ? 'ant-btn-bmc' : '',
       ].filter(Boolean).join(' ') || undefined,
     };
-    return h(Button, props, text || null);
+    const children = badge
+      ? [text || null, h('span', {
+        key: 'badge',
+        className: 'star-count',
+        'data-star-count': '',
+        hidden: badge.hidden || undefined,
+      }, badge.textContent)]
+      : (text || null);
+    return h(Button, props, children);
   };
 
   const scan = (root = document) => {
