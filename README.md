@@ -211,6 +211,13 @@ Indexing takes days to weeks. Brand queries such as *RAWM HUB Web*,
 *Better RAWM HUB* or *RAWM web configurator* are realistic targets; the bare
 word *RAWM* is owned by the vendor and cannot be guaranteed.
 
+The name Google prints above each result (the site name) is taken from the
+`WebSite` structured data on the home page, then from `og:site_name`, the
+`<title>`, headings and other home-page text. Every one of those signals uses
+the same string, **Better RAWM Hub**, with the domain listed last in
+`alternateName` as the documented fallback. Change it in `src/template.html`
+and `src/app.js` together, or Google will fall back to `chila.io.vn`.
+
 ## Design
 
 - Dark cockpit shell: 250px rail, sticky topbar, 1240px content column.

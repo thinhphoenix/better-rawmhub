@@ -1319,8 +1319,8 @@ python -m http.server 8080</pre>
     $('#crumb-section').textContent = PAGE_TITLES[page] || 'Device';
     const tr = window.RAWM_I18N ? window.RAWM_I18N.t : (s) => s;
     document.title = state.connected && state.profile
-      ? `${tr(PAGE_TITLES[page])} · ${state.profile.title} — RAWM HUB Web`
-      : `${tr('RAWM mouse & keyboard configurator')} — RAWM HUB Web`;
+      ? `Better RAWM Hub — ${tr(PAGE_TITLES[page])} · ${state.profile.title}`
+      : `Better RAWM Hub — ${tr('RAWM mouse & keyboard configurator')}`;
 
     const fw = $('#fw-channel');
     if (fw) fw.value = String((state.cfg && state.cfg.fwChannel) || 0);
