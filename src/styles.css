@@ -220,7 +220,7 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .btn-primary {
   background: var(--accent); border-color: var(--accent); color: #ffffff; font-weight: 500;
 }
-.btn-primary:hover { background: #60eb9d; border-color: #60eb9d; color: #ffffff; }
+.btn-primary:hover { background: #5b9bf8; border-color: #5b9bf8; color: #ffffff; }
 .btn-primary:active { background: var(--accent-2); border-color: var(--accent-2); }
 .btn-ghost { background: transparent; border-color: #33383f; color: rgba(255, 255, 255, 0.65); }
 .btn-ghost:hover { background: rgba(255, 255, 255, 0.04); color: #fff; border-color: #4b5158; }
@@ -231,7 +231,7 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; }
   pointer-events: none; box-shadow: none;
 }
 .btn-primary[disabled], .btn-primary[disabled]:hover {
-  background: #173a29; border-color: #1e4a34; color: rgba(255, 255, 255, 0.3);
+  background: #16304f; border-color: #1e4266; color: rgba(255, 255, 255, 0.3);
 }
 .btn .spin { animation: spin 1s linear infinite; }
 .link-btn {
@@ -240,7 +240,7 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; }
   font-size: 12px; font-weight: 500;
 }
 .link-btn .ic { width: 13px; height: 13px; }
-.link-btn:hover { color: #7af0ae; }
+.link-btn:hover { color: #8fbcff; }
 .link-btn:hover .ic { transform: translateX(2px); }
 .link-btn .ic { transition: transform 140ms var(--ease); }
 
