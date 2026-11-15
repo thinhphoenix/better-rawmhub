@@ -28,6 +28,20 @@ ls -l /dev/hidraw*
 Pick the product id of your device — the app prints `VID 0x1915 PID 0x2346`
 when the open fails, and `lsusb | grep 1915` shows it too.
 
+### One command
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/thinhphoenix/better-rawmhub/main/scripts/linux-udev.sh | sudo sh -s -- --product 2346
+```
+
+The script writes the rule, reloads udev, triggers the subsystem and prints
+which hidraw nodes now have an ACL. Drop `-s -- --product 2346` to cover every
+RAWM device instead of one product. `--dry-run` shows what it would do.
+Prefer to see it first? [scripts/linux-udev.sh](../scripts/linux-udev.sh) is a
+short POSIX shell script.
+
+### By hand
+
 Create `/etc/udev/rules.d/70-better-rawmhub.rules`:
 
 ```sh

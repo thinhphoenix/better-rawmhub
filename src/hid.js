@@ -123,6 +123,16 @@ const RAWM = (() => {
     ].join('\n');
   }
 
+  /* One command that writes the rule, reloads udev and reports the result.
+     Kept as a helper so the modal, the docs and the tests cannot drift. */
+  const UDEV_SCRIPT_URL = 'https://raw.githubusercontent.com/thinhphoenix/better-rawmhub/main/scripts/linux-udev.sh';
+
+  function udevOneLiner(options = {}) {
+    const productId = options.productId == null || !Number(options.productId) ? null : Number(options.productId);
+    const args = productId ? ` --product ${hex4(productId)}` : '';
+    return `curl -fsSL ${UDEV_SCRIPT_URL} | sudo sh -s --${args}`;
+  }
+
   const CMD = {
     QUERY: 0x1,
     QUERY_RESULT: 0x2,
@@ -1002,6 +1012,7 @@ const RAWM = (() => {
     classifyHidError,
     udevRule,
     udevInstallScript,
+    udevOneLiner,
     crc16,
     frame,
     hex,

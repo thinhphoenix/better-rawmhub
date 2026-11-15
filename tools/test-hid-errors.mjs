@@ -127,6 +127,35 @@ check('the install script reloads, triggers and verifies', () => {
   }
 });
 
+check('the one command is the published script with the product scope', () => {
+  equal(
+    RAWM.udevOneLiner({ productId: 0x2346 }),
+    'curl -fsSL https://raw.githubusercontent.com/thinhphoenix/better-rawmhub/main/scripts/linux-udev.sh | sudo sh -s -- --product 2346',
+    'line',
+  );
+  const vendorOnly = RAWM.udevOneLiner({});
+  if (vendorOnly.includes('--product')) throw new Error('the vendor-wide command must not narrow the product');
+  if (!vendorOnly.includes('sudo sh')) throw new Error('the command must run through sudo');
+});
+
+check('scripts/linux-udev.sh stays in sync with the generated commands', () => {
+  const script = readFileSync(new URL('../scripts/linux-udev.sh', import.meta.url), 'utf8');
+  for (const needle of [
+    '70-better-rawmhub.rules',
+    '/etc/udev/rules.d',
+    'ATTRS{idVendor}',
+    'TAG+=',
+    'uaccess',
+    'udevadm control --reload-rules',
+    'udevadm trigger --subsystem-match=hidraw',
+  ]) {
+    if (!script.includes(needle)) throw new Error(`scripts/linux-udev.sh is missing ${needle}`);
+  }
+  for (const banned of ['chmod 666', '--no-sandbox']) {
+    if (script.includes(banned)) throw new Error(`scripts/linux-udev.sh mentions ${banned}`);
+  }
+});
+
 check('the guidance never suggests an unsafe workaround', () => {
   const text = `${RAWM.udevRule({ productId: 0x2346 })}\n${RAWM.udevInstallScript({ productId: 0x2346 })}`;
   for (const banned of ['chmod 666', '--no-sandbox', 'chmod -R 777']) {

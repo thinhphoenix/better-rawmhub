@@ -1778,6 +1778,7 @@
           productName: label,
           rule: RAWM.udevRule({ vendorId, productId }),
           script: RAWM.udevInstallScript({ vendorId, productId }),
+          oneLiner: RAWM.udevOneLiner({ productId }),
           error: { name: info.name, message: info.message },
         };
         addLog('err', `${info.name}: ${info.message} · VID 0x${hex4(vendorId)}${productId ? ` PID 0x${hex4(productId)}` : ''} · Linux hidraw permission — the udev uaccess rule is missing (${DOCS_LINUX})`);
@@ -2073,9 +2074,15 @@
           <p class="help">The browser can see the device but cannot open it: <span class="mono">${esc(detail.error.name)}</span> — <span class="mono">${esc(detail.error.message)}</span>.</p>
           <p class="help" style="margin-top:8px">On Linux every <span class="mono">/dev/hidraw*</span> node belongs to <span class="mono">root</span>. logind only grants your desktop user access when a udev rule tags the device with <span class="mono">uaccess</span> — and distributions such as Arch/CachyOS only do that for specific device classes, not for a vendor HID interface like this one.</p>
           <div class="kv" style="margin-top:12px"><span class="k">Device</span><span class="v">${esc(detail.productName)} · <span class="mono">${ids}</span></span></div>
-          <p class="help" style="margin-top:14px">Rule for this device (stays scoped to vendor 1915${detail.productId ? ' and this product id' : ''}):</p>
+          <p class="help" style="margin-top:16px"><strong>Fastest: one command.</strong> It writes the rule, reloads udev and tells you whether the ACL applied.</p>
+          <pre class="code-block" id="linux-oneliner">${esc(detail.oneLiner)}</pre>
+          <div class="row wrap" style="margin-top:8px">
+            <button class="btn btn-primary btn-sm" data-action="linux-perm-copy-oneliner">${icon('copy')}<span>Copy one command</span></button>
+          </div>
+          <p class="help" style="margin-top:12px">Then unplug and replug the receiver and press Retry.</p>
+          <p class="help" style="margin-top:16px">Or do it by hand. Rule for this device (stays scoped to vendor 1915${detail.productId ? ' and this product id' : ''}):</p>
           <pre class="code-block" id="linux-rule">${esc(detail.rule)}</pre>
-          <p class="help" style="margin-top:14px">Install it, reload udev and check the node:</p>
+          <p class="help" style="margin-top:14px">Save it, reload udev and check the node:</p>
           <pre class="code-block" id="linux-script">${esc(detail.script)}</pre>
           <p class="help" style="margin-top:10px">A <span class="mono">+</span> in the <span class="mono">ls -l</span> output means the ACL applied. Unplug and replug the receiver if the browser still refuses, then press Retry. Full notes: <a href="${DOCS_LINUX}" target="_blank" rel="noopener">docs/linux.md</a>.</p>
           <div class="notice" style="margin-top:12px">${icon('info')}<span>Do not run the browser as root, disable its sandbox or make hidraw world-writable. The rule above is all that is needed, and it applies to your user only.</span></div>
@@ -2504,6 +2511,9 @@
       case 'bridge-retry': connectDevice(); break;
       case 'linux-perm-copy':
         if (state.linuxPerm) copyText(state.linuxPerm.script, 'Commands copied — run them in a terminal');
+        break;
+      case 'linux-perm-copy-oneliner':
+        if (state.linuxPerm) copyText(state.linuxPerm.oneLiner, 'Command copied — paste it in a terminal');
         break;
       case 'linux-perm-download': downloadLinuxRule(); break;
       case 'linux-perm-retry':
