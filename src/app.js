@@ -1240,6 +1240,47 @@
   }
 
   /* ── About ─────────────────────────────────────────────────────────── */
+  /* Star count for the repo, fetched once and cached. The button renders
+     without it and the number appears when it arrives, so no layout shift. */
+  const STAR_CACHE = 'rawmhub.stars';
+  const STAR_TTL = 6 * 3600 * 1000;
+  let starCount = null;
+
+  function formatStars(n) {
+    if (n < 1000) return String(n);
+    return (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k';
+  }
+
+  function paintStarCount() {
+    $$('[data-star-count]').forEach((el) => {
+      const known = starCount != null;
+      el.hidden = !known;
+      el.textContent = known ? formatStars(starCount) : '';
+    });
+  }
+
+  async function loadStarCount() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(STAR_CACHE) || 'null');
+      if (cached && typeof cached.n === 'number' && Date.now() - cached.t < STAR_TTL) {
+        starCount = cached.n;
+        paintStarCount();
+        return;
+      }
+    } catch { /* ignore a corrupt cache */ }
+    try {
+      const res = await fetch(`${REPO_URL}`.replace('github.com', 'api.github.com/repos'), {
+        headers: { accept: 'application/vnd.github+json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (typeof data.stargazers_count !== 'number') return;
+      starCount = data.stargazers_count;
+      paintStarCount();
+      try { localStorage.setItem(STAR_CACHE, JSON.stringify({ n: starCount, t: Date.now() })); } catch { /* quota */ }
+    } catch { /* offline or rate limited: the button stays as it is */ }
+  }
+
   function aboutView() {
     const version = (document.querySelector('meta[name="app-version"]') || {}).content || '';
     return `
@@ -1293,7 +1334,7 @@
           <div class="kv" style="margin-top:10px"><span class="k">Repository</span><a class="v" href="${REPO_URL}" target="_blank" rel="noopener">thinhphoenix/better-rawmhub</a></div>
           <div class="kv"><span class="k">Issues</span><a class="v" href="${REPO_URL}/issues" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}/issues</a></div>
           <div class="row" style="margin-top:14px;flex-wrap:wrap">
-            <a class="btn btn-primary btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('star')}<span>Star on GitHub</span></a>
+            <a class="btn btn-primary btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('github')}<span>Star on GitHub</span><span class="star-count" data-star-count hidden></span></a>
             <a class="btn btn-ghost btn-sm" href="${REPO_URL}" target="_blank" rel="noopener">${icon('github')}<span>View source</span></a>
           </div>
         </div>
@@ -1487,6 +1528,7 @@
 
     if (state.logOpen) renderLog();
     updateRangeFills();
+    paintStarCount();
     if (window.RAWM_I18N) window.RAWM_I18N.apply(document.body);
     if (window.__antMount) window.__antMount();
   }
@@ -2339,6 +2381,7 @@
     if (langSel && window.RAWM_I18N) langSel.value = window.RAWM_I18N.lang;
 
     render();
+    loadStarCount();
     addLog('info', 'RAWM HUB 2.0 · WebHID ' + (RAWM.Transport.supported ? 'available' : 'unavailable'));
     if (!RAWM.Transport.supported) addLog('err', 'navigator.hid missing — use Chrome or Edge');
   }
